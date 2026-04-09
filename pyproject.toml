@@ -1,5 +1,5 @@
 [project]
-name = "mcp-resource-framework"
+name = "mcp-authflow-resource"
 version = "0.1.0"
 description = "OAuth 2.0 Resource Server framework for MCP (Model Context Protocol) servers"
 readme = "README.md"

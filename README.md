@@ -1,8 +1,8 @@
-# mcp-resource-framework
+# mcp-authflow-resource
 
 OAuth 2.0 Resource Server framework for [MCP](https://modelcontextprotocol.io/) servers. Validate tokens and control tool-call rates with a proportional feedback loop.
 
-Pair with [mcp-auth-framework](https://github.com/brooksmcmillin/mcpauth) on the authorization server side.
+Pair with [mcp-authflow](https://github.com/brooksmcmillin/mcpauth) on the authorization server side.
 
 ## Features
 
@@ -16,7 +16,7 @@ Pair with [mcp-auth-framework](https://github.com/brooksmcmillin/mcpauth) on the
 ## Installation
 
 ```bash
-pip install mcp-resource-framework
+pip install mcp-authflow-resource
 ```
 
 ## Quick Start: Protect an MCP Server in 5 Minutes

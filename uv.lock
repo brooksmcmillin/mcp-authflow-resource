@@ -413,7 +413,7 @@ wheels = [
 ]
 
 [[package]]
-name = "mcp-resource-framework"
+name = "mcp-authflow-resource"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
