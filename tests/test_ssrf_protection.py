@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from mcp_resource_framework.auth.ssrf_protection import is_safe_url
+from mcp_authflow_resource.auth.ssrf_protection import is_safe_url
 
 
 class TestIsSafeUrl:

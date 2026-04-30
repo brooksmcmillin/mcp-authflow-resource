@@ -1,4 +1,4 @@
-"""Pytest configuration and fixtures for mcp-resource-framework tests."""
+"""Pytest configuration and fixtures for mcp-authflow-resource tests."""
 
 from __future__ import annotations
 

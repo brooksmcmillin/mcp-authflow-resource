@@ -11,14 +11,14 @@ These tests are deterministic (no I/O, fixed timestamps) and fast.
 
 import pytest
 
-from mcp_resource_framework.friction.controller import FrictionController
-from mcp_resource_framework.friction.models import (
+from mcp_authflow_resource.friction.controller import FrictionController
+from mcp_authflow_resource.friction.models import (
     ControllerConfig,
     FrictionLevel,
     ToolFrictionConfig,
     ToolGroupConfig,
 )
-from mcp_resource_framework.friction.registry import FrictionRegistry
+from mcp_authflow_resource.friction.registry import FrictionRegistry
 
 # ---------------------------------------------------------------------------
 # Production-equivalent config (from server.py lines 229-267)

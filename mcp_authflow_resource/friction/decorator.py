@@ -2,7 +2,7 @@
 
 Usage::
 
-    from mcp_resource_framework.friction import friction_controlled, record_tool_call
+    from mcp_authflow_resource.friction import friction_controlled, record_tool_call
 
     @app.tool()
     @guard_tool(input_params=["title"])
@@ -26,7 +26,7 @@ from typing import Any, ParamSpec, TypeVar
 
 from .registry import FrictionRegistry
 
-logger = logging.getLogger("mcp_resource_framework.friction")
+logger = logging.getLogger("mcp_authflow_resource.friction")
 
 P = ParamSpec("P")
 R = TypeVar("R")

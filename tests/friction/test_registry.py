@@ -4,11 +4,11 @@ import asyncio
 
 import pytest
 
-from mcp_resource_framework.friction.models import (
+from mcp_authflow_resource.friction.models import (
     ControllerConfig,
     ToolFrictionConfig,
 )
-from mcp_resource_framework.friction.registry import FrictionRegistry
+from mcp_authflow_resource.friction.registry import FrictionRegistry
 
 
 @pytest.fixture

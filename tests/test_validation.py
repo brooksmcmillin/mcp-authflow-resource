@@ -1,9 +1,9 @@
-"""Tests for mcp_resource_framework.validation module."""
+"""Tests for mcp_authflow_resource.validation module."""
 
 import json
 from typing import Any
 
-from mcp_resource_framework.validation import (
+from mcp_authflow_resource.validation import (
     json_error,
     require_dict,
     require_list,

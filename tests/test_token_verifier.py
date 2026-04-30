@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from mcp_resource_framework.auth.token_verifier import IntrospectionTokenVerifier
+from mcp_authflow_resource.auth.token_verifier import IntrospectionTokenVerifier
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -119,7 +119,7 @@ class TestSSRFGuard:
     async def test_ssrf_unsafe_url_logs_warning(self, caplog: pytest.LogCaptureFixture) -> None:
         """An unsafe URL should produce a WARNING log."""
         verifier = _make_verifier(introspection_endpoint="ftp://evil.example.com/")
-        log_name = "mcp_resource_framework.auth.token_verifier"
+        log_name = "mcp_authflow_resource.auth.token_verifier"
 
         with (
             patch("httpx.AsyncClient"),
@@ -185,7 +185,7 @@ class TestHttpErrors:
     async def test_exception_logs_warning(self, caplog: pytest.LogCaptureFixture) -> None:
         """Caught exceptions should be logged at WARNING level."""
         verifier = _make_verifier()
-        log_name = "mcp_resource_framework.auth.token_verifier"
+        log_name = "mcp_authflow_resource.auth.token_verifier"
 
         with (
             patch("httpx.AsyncClient") as mock_client_cls,
@@ -371,7 +371,7 @@ class TestResourceValidation:
     ) -> None:
         """Resource validation failure should log a WARNING."""
         token_data = {**_ACTIVE_TOKEN_DATA, "aud": "https://different.example.com"}
-        log_name = "mcp_resource_framework.auth.token_verifier"
+        log_name = "mcp_authflow_resource.auth.token_verifier"
 
         verifier = _make_verifier(validate_resource=True)
         mock_response = _mock_http_response(200, token_data)

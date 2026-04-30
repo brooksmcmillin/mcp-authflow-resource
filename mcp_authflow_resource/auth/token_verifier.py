@@ -6,7 +6,7 @@ from typing import Any
 from mcp.server.auth.provider import AccessToken, TokenVerifier
 from mcp.shared.auth_utils import check_resource_allowed, resource_url_from_server_url
 
-from mcp_resource_framework.auth.ssrf_protection import is_safe_url
+from mcp_authflow_resource.auth.ssrf_protection import is_safe_url
 
 logger = logging.getLogger(__name__)
 

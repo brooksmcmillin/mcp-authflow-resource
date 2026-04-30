@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock
 import pytest
 from starlette.types import Receive, Scope, Send
 
-from mcp_resource_framework.middleware import NormalizePathMiddleware, create_logging_middleware
+from mcp_authflow_resource.middleware import NormalizePathMiddleware, create_logging_middleware
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -165,7 +165,7 @@ class TestCreateLoggingMiddleware:
         mw = create_logging_middleware(inner)
 
         scope = _make_http_scope("/mcp", method="GET")
-        log_name = "mcp_resource_framework.middleware"
+        log_name = "mcp_authflow_resource.middleware"
 
         with caplog.at_level(logging.INFO, logger=log_name):
             await mw(scope, AsyncMock(), AsyncMock())
@@ -185,7 +185,7 @@ class TestCreateLoggingMiddleware:
             "/mcp",
             headers=[(b"authorization", b"Bearer secret-token")],
         )
-        log_name = "mcp_resource_framework.middleware"
+        log_name = "mcp_authflow_resource.middleware"
 
         with caplog.at_level(logging.INFO, logger=log_name):
             await mw(scope, AsyncMock(), AsyncMock())
@@ -205,7 +205,7 @@ class TestCreateLoggingMiddleware:
             "/mcp",
             headers=[(b"authorization", b"Bearer visible-token")],
         )
-        log_name = "mcp_resource_framework.middleware"
+        log_name = "mcp_authflow_resource.middleware"
 
         with caplog.at_level(logging.INFO, logger=log_name):
             await mw(scope, AsyncMock(), AsyncMock())
@@ -222,7 +222,7 @@ class TestCreateLoggingMiddleware:
 
         mw = create_logging_middleware(inner_app)
         scope = _make_http_scope("/mcp")
-        log_name = "mcp_resource_framework.middleware"
+        log_name = "mcp_authflow_resource.middleware"
 
         with caplog.at_level(logging.INFO, logger=log_name):
             await mw(scope, AsyncMock(), AsyncMock())
@@ -239,7 +239,7 @@ class TestCreateLoggingMiddleware:
 
         mw = create_logging_middleware(inner_app)
         scope = _make_http_scope("/mcp")
-        log_name = "mcp_resource_framework.middleware"
+        log_name = "mcp_authflow_resource.middleware"
 
         with caplog.at_level(logging.DEBUG, logger=log_name):
             await mw(scope, AsyncMock(), AsyncMock())
@@ -260,7 +260,7 @@ class TestCreateLoggingMiddleware:
 
         mw = create_logging_middleware(inner_app)
         scope = _make_http_scope("/mcp", method="POST")
-        log_name = "mcp_resource_framework.middleware"
+        log_name = "mcp_authflow_resource.middleware"
 
         with caplog.at_level(logging.INFO, logger=log_name):
             await mw(scope, receive, AsyncMock())
@@ -275,7 +275,7 @@ class TestCreateLoggingMiddleware:
 
         scope = _make_http_scope("/mcp")
         scope["query_string"] = b"foo=bar"
-        log_name = "mcp_resource_framework.middleware"
+        log_name = "mcp_authflow_resource.middleware"
 
         with caplog.at_level(logging.INFO, logger=log_name):
             await mw(scope, AsyncMock(), AsyncMock())
@@ -297,7 +297,7 @@ class TestCreateLoggingMiddleware:
 
         mw = create_logging_middleware(inner_app)
         scope = _make_http_scope("/mcp", method="POST")
-        log_name = "mcp_resource_framework.middleware"
+        log_name = "mcp_authflow_resource.middleware"
 
         with caplog.at_level(logging.INFO, logger=log_name):
             await mw(scope, receive, AsyncMock())
@@ -319,7 +319,7 @@ class TestCreateLoggingMiddleware:
 
         mw = create_logging_middleware(inner_app)
         scope = _make_http_scope("/mcp", method="POST")
-        log_name = "mcp_resource_framework.middleware"
+        log_name = "mcp_authflow_resource.middleware"
 
         with caplog.at_level(logging.INFO, logger=log_name):
             await mw(scope, receive, AsyncMock())
@@ -338,7 +338,7 @@ class TestCreateLoggingMiddleware:
 
         mw = create_logging_middleware(inner_app)
         scope = _make_http_scope("/mcp")
-        log_name = "mcp_resource_framework.middleware"
+        log_name = "mcp_authflow_resource.middleware"
 
         with caplog.at_level(logging.DEBUG, logger=log_name):
             await mw(scope, AsyncMock(), AsyncMock())

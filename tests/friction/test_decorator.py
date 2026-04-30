@@ -6,17 +6,17 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from mcp_resource_framework.friction.decorator import (
+from mcp_authflow_resource.friction.decorator import (
     friction_controlled,
     record_tool_call,
 )
-from mcp_resource_framework.friction.models import (
+from mcp_authflow_resource.friction.models import (
     ControllerConfig,
     FrictionLevel,
     FrictionResult,
     ToolFrictionConfig,
 )
-from mcp_resource_framework.friction.registry import FrictionRegistry
+from mcp_authflow_resource.friction.registry import FrictionRegistry
 
 
 @pytest.fixture
@@ -60,7 +60,7 @@ class TestFrictionControlled:
             return "ok"
 
         with patch(
-            "mcp_resource_framework.friction.decorator._get_client_id",
+            "mcp_authflow_resource.friction.decorator._get_client_id",
             return_value="test-client",
         ):
             result = await my_tool()
@@ -79,7 +79,7 @@ class TestFrictionControlled:
             return "ok"
 
         with patch(
-            "mcp_resource_framework.friction.decorator._get_client_id",
+            "mcp_authflow_resource.friction.decorator._get_client_id",
             return_value="test-client",
         ):
             result = await my_tool()
@@ -96,7 +96,7 @@ class TestFrictionControlled:
             return "ok"
 
         with patch(
-            "mcp_resource_framework.friction.decorator._get_client_id",
+            "mcp_authflow_resource.friction.decorator._get_client_id",
             return_value=None,
         ):
             result = await my_tool()
@@ -135,7 +135,7 @@ class TestRecordToolCall:
             return "tasks"
 
         with patch(
-            "mcp_resource_framework.friction.decorator._get_client_id",
+            "mcp_authflow_resource.friction.decorator._get_client_id",
             return_value="test-client",
         ):
             result = await get_tasks()

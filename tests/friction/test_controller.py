@@ -1,7 +1,7 @@
 """Tests for the friction controller."""
 
-from mcp_resource_framework.friction.controller import FrictionController
-from mcp_resource_framework.friction.models import (
+from mcp_authflow_resource.friction.controller import FrictionController
+from mcp_authflow_resource.friction.models import (
     ControllerConfig,
     FrictionLevel,
     ToolFrictionConfig,

@@ -1,6 +1,6 @@
 """Tests for the sliding window rate tracker."""
 
-from mcp_resource_framework.friction.window import SlidingWindow
+from mcp_authflow_resource.friction.window import SlidingWindow
 
 
 class TestSlidingWindow:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from starlette.requests import Request
 from starlette.testclient import TestClient
 
-from mcp_resource_framework.oauth_discovery import (
+from mcp_authflow_resource.oauth_discovery import (
     CorsHeaderBuilder,
     register_oauth_discovery_endpoints,
 )

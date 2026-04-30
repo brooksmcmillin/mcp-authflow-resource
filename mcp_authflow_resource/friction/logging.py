@@ -6,11 +6,11 @@ ships it to Loki with labels ``{namespace, pod, container, app}``.
 
 Logger hierarchy::
 
-    mcp_resource_framework.friction          -- check / record events
-    mcp_resource_framework.friction.block    -- blocked tool calls (WARNING)
-    mcp_resource_framework.friction.registry -- client lifecycle events
+    mcp_authflow_resource.friction          -- check / record events
+    mcp_authflow_resource.friction.block    -- blocked tool calls (WARNING)
+    mcp_authflow_resource.friction.registry -- client lifecycle events
 
-See ``packages/mcp-resource-framework/CLAUDE.md`` for LogQL query examples.
+See ``packages/mcp-authflow-resource/CLAUDE.md`` for LogQL query examples.
 """
 
 import json
@@ -18,9 +18,9 @@ import logging
 
 from .models import FrictionResult
 
-logger = logging.getLogger("mcp_resource_framework.friction")
-block_logger = logging.getLogger("mcp_resource_framework.friction.block")
-registry_logger = logging.getLogger("mcp_resource_framework.friction.registry")
+logger = logging.getLogger("mcp_authflow_resource.friction")
+block_logger = logging.getLogger("mcp_authflow_resource.friction.block")
+registry_logger = logging.getLogger("mcp_authflow_resource.friction.registry")
 
 
 def _friction_extra(

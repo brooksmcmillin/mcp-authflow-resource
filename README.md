@@ -2,7 +2,7 @@
 
 OAuth 2.0 Resource Server framework for [MCP](https://modelcontextprotocol.io/) servers. Validate tokens and control tool-call rates with a proportional feedback loop.
 
-Pair with [mcp-authflow](https://github.com/brooksmcmillin/mcpauth) on the authorization server side.
+Pair with [mcp-authflow](https://github.com/brooksmcmillin/mcp-authflow) on the authorization server side.
 
 ## Features
 
@@ -26,7 +26,7 @@ from mcp.server.fastmcp.server import FastMCP
 from mcp.server.auth.settings import AuthSettings
 from pydantic import AnyHttpUrl
 
-from mcp_resource_framework import (
+from mcp_authflow_resource import (
     IntrospectionTokenVerifier,
     register_oauth_discovery_endpoints,
 )
@@ -98,7 +98,7 @@ That's it. Clients must now present a valid Bearer token to call any tool.
 ### Token Verification
 
 ```python
-from mcp_resource_framework import IntrospectionTokenVerifier
+from mcp_authflow_resource import IntrospectionTokenVerifier
 
 verifier = IntrospectionTokenVerifier(
     introspection_endpoint="http://auth-server:8000/introspect",
@@ -114,7 +114,7 @@ token = await verifier.verify_token("Bearer_token_here")
 ### SSRF Protection
 
 ```python
-from mcp_resource_framework import is_safe_url
+from mcp_authflow_resource import is_safe_url
 
 is_safe_url("https://api.example.com")           # True (HTTPS always safe)
 is_safe_url("http://localhost:8000")              # True (localhost allowed by default)
@@ -128,7 +128,7 @@ is_safe_url("http://localhost", allow_localhost=False)  # False
 Auto-configures `.well-known` endpoints so MCP clients can discover your auth server:
 
 ```python
-from mcp_resource_framework import register_oauth_discovery_endpoints
+from mcp_authflow_resource import register_oauth_discovery_endpoints
 
 register_oauth_discovery_endpoints(
     app,
@@ -156,7 +156,7 @@ Dynamic tool-call rate limiting that adjusts friction per-tool based on observed
 #### Setup
 
 ```python
-from mcp_resource_framework import (
+from mcp_authflow_resource import (
     ControllerConfig,
     FrictionRegistry,
     ToolFrictionConfig,
@@ -232,9 +232,9 @@ Friction events are emitted as structured JSON via Python's `logging` module:
 
 ```python
 # Logger names
-"mcp_resource_framework.friction"         # check/record events (INFO)
-"mcp_resource_framework.friction.block"   # blocked calls (WARNING)
-"mcp_resource_framework.friction.registry"  # client lifecycle (DEBUG)
+"mcp_authflow_resource.friction"         # check/record events (INFO)
+"mcp_authflow_resource.friction.block"   # blocked calls (WARNING)
+"mcp_authflow_resource.friction.registry"  # client lifecycle (DEBUG)
 ```
 
 Event types: `friction_check`, `friction_block`, `friction_justification`, `friction_saturation`
@@ -246,7 +246,7 @@ Fields: `event_type`, `client_id`, `tool_name`, `friction_level`, `ema_rate`, `t
 Helpers for validating API responses in MCP tool implementations:
 
 ```python
-from mcp_resource_framework.validation import (
+from mcp_authflow_resource.validation import (
     json_error,
     validate_list_response,
     validate_dict_response,
@@ -261,7 +261,7 @@ if error:
 ### Middleware
 
 ```python
-from mcp_resource_framework.middleware import NormalizePathMiddleware, create_logging_middleware
+from mcp_authflow_resource.middleware import NormalizePathMiddleware, create_logging_middleware
 
 # Normalize trailing slashes: /mcp/ -> /mcp
 app.add_middleware(NormalizePathMiddleware)
@@ -350,7 +350,7 @@ app = Starlette(
 ```python
 from mcp.server.fastmcp.server import FastMCP
 
-from mcp_resource_framework import (
+from mcp_authflow_resource import (
     IntrospectionTokenVerifier,
     register_oauth_discovery_endpoints,
 )

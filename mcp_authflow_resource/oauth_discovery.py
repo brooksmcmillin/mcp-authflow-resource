@@ -8,7 +8,7 @@ to discover OAuth configuration and complete the authorization flow:
 - OpenID Connect Discovery (alias for RFC 8414)
 
 Usage:
-    from mcp_resource_framework.oauth_discovery import register_oauth_discovery_endpoints
+    from mcp_authflow_resource.oauth_discovery import register_oauth_discovery_endpoints
 
     app = FastMCP(...)
     register_oauth_discovery_endpoints(

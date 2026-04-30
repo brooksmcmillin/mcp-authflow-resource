@@ -13,8 +13,8 @@ control tool-call rates:
 
 __version__ = "0.1.0"
 
-from mcp_resource_framework.auth import IntrospectionTokenVerifier, is_safe_url
-from mcp_resource_framework.friction import (
+from mcp_authflow_resource.auth import IntrospectionTokenVerifier, is_safe_url
+from mcp_authflow_resource.friction import (
     ControllerConfig,
     FrictionRegistry,
     ToolFrictionConfig,
@@ -23,7 +23,7 @@ from mcp_resource_framework.friction import (
     init_friction,
     record_tool_call,
 )
-from mcp_resource_framework.oauth_discovery import register_oauth_discovery_endpoints
+from mcp_authflow_resource.oauth_discovery import register_oauth_discovery_endpoints
 
 __all__ = [
     # Version
