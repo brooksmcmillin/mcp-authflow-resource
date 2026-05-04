@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.3.0
+
+### Security
+
+- **SSRF (`is_safe_url`):** Replaced naïve `url.startswith()` checks with a
+  proper `urlparse` + `ipaddress`-based parser. The previous implementation
+  was bypassable in several ways that the new one rejects:
+
+  - IPv6 literals other than `::1` (e.g. `http://[2001:db8::1]/`)
+  - IPv4-mapped IPv6 forms (`::ffff:127.0.0.1`) now follow the same loopback
+    rule as bare `127.0.0.1`
+  - Userinfo injection (`http://evil.com@mcp-auth/` parses to host `mcp-auth`,
+    which is the only safe interpretation)
+  - Decimal IP forms (`http://2130706433/` for `127.0.0.1`)
+  - Hex-dotted IP forms (`http://0x7f.0x0.0x0.0x1/`)
+  - Null-host URLs (`http:///path`)
+  - Percent-encoded hostnames (`http://%6C%6F%63%61%6C%68%6F%73%74/`)
+  - Single-segment HTTP hostnames are now required to match an RFC 1123 DNS
+    label (`[a-z][a-z0-9-]*`), preventing numeric or trailing-hyphen forms
+    from being accepted as Docker service names.
+
+  The accepted set is unchanged for the documented allowlist — HTTPS, loopback,
+  Docker single-segment hostnames, and `*.cluster.local` — but bypasses
+  outside that allowlist are now closed.
+
+- **`create_logging_middleware`:** Now raises `RuntimeError` unless the
+  environment variable `MCP_ENABLE_VERBOSE_LOGGING=1` is explicitly set
+  (CWE-532). The middleware logs full request bodies (up to 1000 bytes),
+  all headers, and 400-response bodies — when used with MCP servers that
+  includes tool arguments and other personal data forwarded to log sinks
+  like Loki. The opt-in env var prevents accidental production activation.
+
+  Existing test code that calls `create_logging_middleware` directly will
+  need to set `MCP_ENABLE_VERBOSE_LOGGING=1` (e.g. via
+  `monkeypatch.setenv` in pytest); see `tests/test_middleware.py` for the
+  pattern.
+
 ## 0.2.0
 
 ### Breaking changes

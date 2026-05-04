@@ -11,7 +11,7 @@ control tool-call rates:
   feedback loop.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 
 from mcp_authflow_resource.auth import IntrospectionTokenVerifier, is_safe_url
 from mcp_authflow_resource.friction import (

@@ -147,6 +147,11 @@ class TestNormalizePathMiddleware:
 class TestCreateLoggingMiddleware:
     """Logging middleware logs request and response details."""
 
+    @pytest.fixture(autouse=True)
+    def enable_verbose_logging(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Set the opt-in env var so create_logging_middleware doesn't raise in tests."""
+        monkeypatch.setenv("MCP_ENABLE_VERBOSE_LOGGING", "1")
+
     async def test_non_http_scope_forwarded_directly(self) -> None:
         """Non-HTTP scopes are passed straight through without logging."""
         inner = AsyncMock()
@@ -360,3 +365,10 @@ class TestCreateLoggingMiddleware:
         scope = _make_http_scope("/mcp", method="GET")
 
         await mw(scope, tracking_receive, AsyncMock())
+
+    def test_env_guard_raises_without_opt_in(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """create_logging_middleware raises RuntimeError when env var is absent."""
+        monkeypatch.delenv("MCP_ENABLE_VERBOSE_LOGGING", raising=False)
+
+        with pytest.raises(RuntimeError, match="MCP_ENABLE_VERBOSE_LOGGING"):
+            create_logging_middleware(AsyncMock())
