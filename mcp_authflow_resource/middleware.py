@@ -1,6 +1,7 @@
 """ASGI middleware utilities for MCP resource servers."""
 
 import logging
+import os
 from collections.abc import Awaitable, Callable
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -32,6 +33,21 @@ def create_logging_middleware(
 ) -> Callable[[Scope, Receive, Send], Awaitable[None]]:
     """Create ASGI middleware to log detailed request information for debugging.
 
+    .. warning:: **CWE-532 — Insertion of Sensitive Information into Log File**
+
+        This middleware logs full request bodies (up to 1000 bytes), all HTTP
+        headers, and 400-response bodies at INFO/ERROR level.  When used with
+        MCP servers, that includes tool arguments, document content, task
+        titles, and any other personal data passed as MCP tool parameters —
+        all of which would be forwarded to the configured log sink (e.g. Loki).
+
+        **This middleware must NEVER be left active in production.**
+
+        To prevent accidental production activation this function raises
+        ``RuntimeError`` unless the environment variable
+        ``MCP_ENABLE_VERBOSE_LOGGING=1`` is explicitly set.  Use only in
+        controlled debug environments; remove the variable before deploying.
+
     Uses raw ASGI interface to avoid interfering with request body or streaming.
 
     Args:
@@ -40,7 +56,18 @@ def create_logging_middleware(
 
     Returns:
         ASGI middleware function
+
+    Raises:
+        RuntimeError: If ``MCP_ENABLE_VERBOSE_LOGGING`` is not set to ``"1"``,
+            to guard against accidental production activation.
     """
+    if os.environ.get("MCP_ENABLE_VERBOSE_LOGGING") != "1":
+        raise RuntimeError(
+            "create_logging_middleware() refused: MCP_ENABLE_VERBOSE_LOGGING is not set to '1'. "
+            "This middleware logs full request bodies and headers (CWE-532). "
+            "Set MCP_ENABLE_VERBOSE_LOGGING=1 only in controlled debug environments, "
+            "never in production."
+        )
 
     async def middleware(scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
