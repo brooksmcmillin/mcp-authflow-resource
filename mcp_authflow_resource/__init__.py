@@ -11,9 +11,13 @@ control tool-call rates:
   feedback loop.
 """
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
-from mcp_authflow_resource.auth import IntrospectionTokenVerifier, is_safe_url
+from mcp_authflow_resource.auth import (
+    ClientAuthMethod,
+    IntrospectionTokenVerifier,
+    is_safe_url,
+)
 from mcp_authflow_resource.friction import (
     ControllerConfig,
     FrictionRegistry,
@@ -29,6 +33,7 @@ __all__ = [
     # Version
     "__version__",
     # Auth
+    "ClientAuthMethod",
     "IntrospectionTokenVerifier",
     "is_safe_url",
     # Friction

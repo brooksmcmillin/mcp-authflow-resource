@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import logging
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -440,3 +441,141 @@ class TestValidateResourceMethod:
     def test_string_aud_mismatch_returns_false(self) -> None:
         verifier = self._make()
         assert verifier._validate_resource({"aud": "https://wrong.example.com"}) is False
+
+
+# ---------------------------------------------------------------------------
+# Caller authentication on /introspect (RFC 7662 §2.1)
+# ---------------------------------------------------------------------------
+
+
+class TestClientAuth:
+    """Optional client authentication on the introspection POST."""
+
+    async def _captured_post(self, verifier: IntrospectionTokenVerifier) -> tuple[Any, Any]:
+        """Run verify_token against a stub client and return (args, kwargs) of the POST."""
+        mock_response = _mock_http_response(200, _ACTIVE_TOKEN_DATA)
+        mock_post = AsyncMock(return_value=mock_response)
+
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            mock_client_cls.return_value.__aenter__ = AsyncMock(
+                return_value=MagicMock(post=mock_post)
+            )
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            await verifier.verify_token("tok")
+
+        mock_post.assert_called_once()
+        return mock_post.call_args.args, mock_post.call_args.kwargs
+
+    # --- defaults / no auth ----------------------------------------------
+
+    async def test_default_construction_sends_no_auth_header(self) -> None:
+        """Backwards compat: with no client_secret, no Authorization header."""
+        verifier = _make_verifier()
+        _, kwargs = await self._captured_post(verifier)
+
+        assert "Authorization" not in kwargs["headers"]
+        # Only the token field is in the body.
+        assert kwargs["data"] == {"token": "tok"}
+
+    async def test_explicit_none_sends_no_auth_header(self) -> None:
+        """client_auth_method='none' also sends no Authorization header."""
+        verifier = IntrospectionTokenVerifier(
+            introspection_endpoint=INTROSPECTION_URL,
+            server_url=SERVER_URL,
+            client_auth_method="none",
+        )
+        _, kwargs = await self._captured_post(verifier)
+
+        assert "Authorization" not in kwargs["headers"]
+        assert kwargs["data"] == {"token": "tok"}
+
+    async def test_client_secret_omitted_overrides_method_to_none(self) -> None:
+        """Setting only client_auth_method (no secret) still sends no auth."""
+        verifier = IntrospectionTokenVerifier(
+            introspection_endpoint=INTROSPECTION_URL,
+            server_url=SERVER_URL,
+            client_auth_method="client_secret_basic",
+        )
+        _, kwargs = await self._captured_post(verifier)
+
+        assert "Authorization" not in kwargs["headers"]
+
+    # --- client_secret_basic --------------------------------------------
+
+    async def test_client_secret_basic_sends_basic_auth_header(self) -> None:
+        """client_secret_basic puts base64(id:secret) in Authorization: Basic."""
+        verifier = IntrospectionTokenVerifier(
+            introspection_endpoint=INTROSPECTION_URL,
+            server_url=SERVER_URL,
+            client_id="my-client",
+            client_secret="s3cret",
+        )
+        _, kwargs = await self._captured_post(verifier)
+
+        expected = base64.b64encode(b"my-client:s3cret").decode()
+        assert kwargs["headers"]["Authorization"] == f"Basic {expected}"
+        assert kwargs["data"] == {"token": "tok"}
+
+    def test_client_secret_basic_without_client_id_raises(self) -> None:
+        with pytest.raises(ValueError, match="client_id"):
+            IntrospectionTokenVerifier(
+                introspection_endpoint=INTROSPECTION_URL,
+                server_url=SERVER_URL,
+                client_secret="s3cret",
+                client_auth_method="client_secret_basic",
+            )
+
+    # --- client_secret_post ---------------------------------------------
+
+    async def test_client_secret_post_puts_credentials_in_body(self) -> None:
+        """client_secret_post adds client_id and client_secret to the POST body."""
+        verifier = IntrospectionTokenVerifier(
+            introspection_endpoint=INTROSPECTION_URL,
+            server_url=SERVER_URL,
+            client_id="my-client",
+            client_secret="s3cret",
+            client_auth_method="client_secret_post",
+        )
+        _, kwargs = await self._captured_post(verifier)
+
+        assert "Authorization" not in kwargs["headers"]
+        assert kwargs["data"] == {
+            "token": "tok",
+            "client_id": "my-client",
+            "client_secret": "s3cret",
+        }
+
+    def test_client_secret_post_without_client_id_raises(self) -> None:
+        with pytest.raises(ValueError, match="client_id"):
+            IntrospectionTokenVerifier(
+                introspection_endpoint=INTROSPECTION_URL,
+                server_url=SERVER_URL,
+                client_secret="s3cret",
+                client_auth_method="client_secret_post",
+            )
+
+    # --- bearer ----------------------------------------------------------
+
+    async def test_bearer_sends_bearer_auth_header(self) -> None:
+        """bearer puts the client_secret in Authorization: Bearer."""
+        verifier = IntrospectionTokenVerifier(
+            introspection_endpoint=INTROSPECTION_URL,
+            server_url=SERVER_URL,
+            client_secret="shared-secret",
+            client_auth_method="bearer",
+        )
+        _, kwargs = await self._captured_post(verifier)
+
+        assert kwargs["headers"]["Authorization"] == "Bearer shared-secret"
+        assert kwargs["data"] == {"token": "tok"}
+
+    async def test_bearer_does_not_require_client_id(self) -> None:
+        """bearer auth works with only client_secret (no client_id needed)."""
+        # Construction must not raise.
+        verifier = IntrospectionTokenVerifier(
+            introspection_endpoint=INTROSPECTION_URL,
+            server_url=SERVER_URL,
+            client_secret="x",
+            client_auth_method="bearer",
+        )
+        assert verifier is not None

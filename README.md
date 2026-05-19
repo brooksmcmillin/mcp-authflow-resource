@@ -111,6 +111,45 @@ token = await verifier.verify_token("Bearer_token_here")
 # token.client_id, token.scopes, token.expires_at, token.resource
 ```
 
+#### Authenticating to a Protected `/introspect` Endpoint
+
+RFC 7662 §2.1 requires the introspection endpoint to authenticate its callers. Pass credentials via the optional `client_id`, `client_secret`, and `client_auth_method` keyword arguments — the verifier will include them on every introspection POST.
+
+```python
+# Most common: HTTP Basic (RFC 6749 §2.3.1) — the default when credentials are given.
+verifier = IntrospectionTokenVerifier(
+    introspection_endpoint="https://auth.example.com/introspect",
+    server_url="https://mcp.example.com",
+    client_id="my-resource-server",
+    client_secret="...",
+    # client_auth_method="client_secret_basic"  (default)
+)
+
+# Form parameters in the POST body (RFC 6749 §2.3.1, alt form).
+verifier = IntrospectionTokenVerifier(
+    introspection_endpoint="https://auth.example.com/introspect",
+    server_url="https://mcp.example.com",
+    client_id="my-resource-server",
+    client_secret="...",
+    client_auth_method="client_secret_post",
+)
+
+# Single shared bearer secret (RFC 6750-style; used by mcp-authflow).
+verifier = IntrospectionTokenVerifier(
+    introspection_endpoint="https://auth.example.com/introspect",
+    server_url="https://mcp.example.com",
+    client_secret="shared-secret",
+    client_auth_method="bearer",
+)
+```
+
+| `client_auth_method` | Sent as | Requires |
+|---|---|---|
+| `"client_secret_basic"` (default when `client_secret` set) | `Authorization: Basic base64(client_id:client_secret)` | `client_id` + `client_secret` |
+| `"client_secret_post"` | `client_id` and `client_secret` form fields in the POST body | `client_id` + `client_secret` |
+| `"bearer"` | `Authorization: Bearer <client_secret>` | `client_secret` |
+| `"none"` (default when `client_secret` unset) | no auth | — |
+
 ### SSRF Protection
 
 ```python

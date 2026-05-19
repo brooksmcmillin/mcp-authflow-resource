@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.4.0
+
+### Added
+
+- **`IntrospectionTokenVerifier` caller authentication (RFC 7662 §2.1).**
+  The verifier now accepts optional `client_id`, `client_secret`, and
+  `client_auth_method` keyword arguments and will authenticate itself when
+  calling `/introspect`. Supported methods:
+
+  - `"client_secret_basic"` (default when credentials are supplied) — RFC
+    6749 §2.3.1 HTTP Basic: `Authorization: Basic base64(id:secret)`.
+  - `"client_secret_post"` — RFC 6749 §2.3.1 form parameters in the POST
+    body.
+  - `"bearer"` — RFC 6750 bearer auth with a single shared secret
+    (`Authorization: Bearer <client_secret>`), for authorization servers
+    that protect `/introspect` with a shared secret rather than per-client
+    credentials.
+  - `"none"` — explicit no-auth (also the behavior when `client_secret` is
+    omitted).
+
+  ```python
+  from mcp_authflow_resource import IntrospectionTokenVerifier
+
+  verifier = IntrospectionTokenVerifier(
+      introspection_endpoint="https://auth.example.com/introspect",
+      server_url="https://mcp.example.com",
+      client_id="my-resource-server",
+      client_secret="...",
+      # client_auth_method defaults to "client_secret_basic"
+  )
+  ```
+
+  The `ClientAuthMethod` `Literal` is exported from the package root for
+  callers who want a typed parameter.
+
+### Compatibility
+
+- No breaking changes. Existing
+  `IntrospectionTokenVerifier(introspection_endpoint=..., server_url=...)`
+  callers send the request without authentication, exactly as before.
+
 ## 0.3.0
 
 ### Security
