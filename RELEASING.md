@@ -33,10 +33,10 @@ the template for the next cycle.
    `[Unreleased]` entries (security/breaking → minor while on `0.x`).
 2. In `CHANGELOG.md`, rename `## [Unreleased]` to `## X.Y.Z`, delete any empty
    subsections, and add a fresh `## [Unreleased]` template block above it.
-3. Bump the version. It lives in three places that must stay in sync:
-   - `pyproject.toml` (`version = "..."`)
-   - `mcp_authflow_resource/__init__.py` (`__version__ = "..."`)
-   - the `CHANGELOG.md` heading (step 2)
+3. Bump the version in `pyproject.toml` (`version = "..."`). This is the single
+   source of truth: `mcp_authflow_resource.__version__` reads it from installed
+   package metadata at import time, so no other code file needs editing. (The
+   `CHANGELOG.md` heading in step 2 is the only other place the number appears.)
 4. Commit (`release: X.Y.Z`), tag (`git tag vX.Y.Z`), and push with
    `--follow-tags`.
 5. Build and publish:
