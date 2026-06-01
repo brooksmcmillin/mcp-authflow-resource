@@ -11,7 +11,7 @@ control tool-call rates:
   feedback loop.
 """
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 from mcp_authflow_resource.auth import (
     ClientAuthMethod,
