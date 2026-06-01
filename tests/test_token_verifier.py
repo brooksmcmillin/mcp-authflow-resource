@@ -294,6 +294,42 @@ class TestTokenActiveFlag:
 
 
 # ---------------------------------------------------------------------------
+# Secure-by-default construction
+# ---------------------------------------------------------------------------
+
+
+class TestResourceValidationDefault:
+    """RFC 8707 audience binding must be enabled by default (issue #4)."""
+
+    def test_validate_resource_defaults_to_true(self) -> None:
+        """Omitting validate_resource enables audience binding."""
+        verifier = IntrospectionTokenVerifier(
+            introspection_endpoint=INTROSPECTION_URL,
+            server_url=SERVER_URL,
+        )
+        assert verifier.validate_resource is True
+
+    async def test_mismatched_aud_rejected_by_default(self) -> None:
+        """A token for a different resource is rejected without opting in."""
+        verifier = IntrospectionTokenVerifier(
+            introspection_endpoint=INTROSPECTION_URL,
+            server_url=SERVER_URL,
+        )
+        token_data = {**_ACTIVE_TOKEN_DATA, "aud": "https://different.example.com"}
+        mock_response = _mock_http_response(200, token_data)
+        mock_post = AsyncMock(return_value=mock_response)
+
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            mock_client_cls.return_value.__aenter__ = AsyncMock(
+                return_value=MagicMock(post=mock_post)
+            )
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            result = await verifier.verify_token("tok")
+
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
 # Resource validation tests  (validate_resource=True)
 # ---------------------------------------------------------------------------
 

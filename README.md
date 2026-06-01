@@ -103,7 +103,7 @@ from mcp_authflow_resource import IntrospectionTokenVerifier
 verifier = IntrospectionTokenVerifier(
     introspection_endpoint="http://auth-server:8000/introspect",
     server_url="https://mcp.example.com",
-    validate_resource=False,  # Set True for RFC 8707 resource binding
+    validate_resource=True,  # Default; RFC 8707 resource binding. Set False only for single-RS deployments
 )
 
 # Returns AccessToken or None
