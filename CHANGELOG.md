@@ -108,6 +108,6 @@
 Initial release on PyPI as `mcp-authflow-resource` (imported as
 `mcp_resource_framework`). OAuth 2.0 Resource Server primitives for
 MCP: introspection-based token verification with SSRF protection,
-RFC 9728 / RFC 8414 / OIDC discovery endpoints, normalize-path and
+RFC 9908 / RFC 8414 / OIDC discovery endpoints, normalize-path and
 logging middleware, and the proportional-feedback friction
 controller for per-tool rate management.
