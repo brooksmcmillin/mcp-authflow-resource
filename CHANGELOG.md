@@ -6,7 +6,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Add entries under `## [Unreleased]` as PRs merge. At release time the
 `[Unreleased]` heading is promoted to the new version number (see
-[RELEASING.md](RELEASING.md)).
+[RELEASING.md](https://github.com/brooksmcmillin/mcp-authflow-resource/blob/main/RELEASING.md)).
 
 ## [Unreleased]
 
