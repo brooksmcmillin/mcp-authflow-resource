@@ -11,8 +11,8 @@ verifier = IntrospectionTokenVerifier(
     introspection_endpoint="https://auth.example.com/introspect",
     server_url="https://mcp.example.com",
 
-    # RFC 8707 resource binding
-    validate_resource=False,
+    # RFC 8707 resource binding (default True; set False only for single-RS deployments)
+    validate_resource=True,
 
     # Auth to the introspection endpoint itself (RFC 7662 §2.1)
     client_id=None,

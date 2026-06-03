@@ -38,13 +38,19 @@ class IntrospectionTokenVerifier(TokenVerifier):
       the introspection endpoint with a single shared secret:
       ``Authorization: Bearer <client_secret>``. Requires only ``client_secret``.
     - ``"none"`` — explicit no-auth (same as omitting ``client_secret``).
+
+    ``validate_resource`` defaults to ``True``, enforcing RFC 8707 audience
+    binding so a token issued for resource server A cannot be replayed against
+    resource server B that shares the same authorization server. Set it to
+    ``False`` only for single-resource-server deployments where every token
+    issued by the authorization server is intended for this resource.
     """
 
     def __init__(
         self,
         introspection_endpoint: str,
         server_url: str,
-        validate_resource: bool = False,
+        validate_resource: bool = True,
         *,
         client_id: str | None = None,
         client_secret: str | None = None,
@@ -133,7 +139,7 @@ class IntrospectionTokenVerifier(TokenVerifier):
                     logger.debug("Token marked as inactive")
                     return None
 
-                # RFC 8707 resource validation (only when --oauth-strict is set)
+                # RFC 8707 resource validation (enabled by default)
                 if self.validate_resource and not self._validate_resource(data_resp):
                     logger.warning(
                         "Token resource validation failed. Expected: %s", self.resource_url

@@ -1,5 +1,57 @@
 # Changelog
 
+All notable changes to this project are documented here. The format is based on
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+Add entries under `## [Unreleased]` as PRs merge. At release time the
+`[Unreleased]` heading is promoted to the new version number (see
+[RELEASING.md](https://github.com/brooksmcmillin/mcp-authflow-resource/blob/main/RELEASING.md)).
+
+## [Unreleased]
+
+### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## 0.5.0
+
+### Security
+
+- **`IntrospectionTokenVerifier` now enforces RFC 8707 audience binding by
+  default.** The `validate_resource` constructor parameter now defaults to
+  `True` (previously `False`). Audience binding is enforced out of the box, so
+  a token issued for one resource server can no longer be replayed against a
+  different resource server that shares the same authorization server
+  (CWE-345). The only gate was previously `active=true` from the introspection
+  endpoint.
+
+### Breaking changes
+
+- Callers that relied on the previous permissive default will now have tokens
+  rejected when the `aud` claim does not match this resource server. Single
+  resource-server deployments — where every token issued by the authorization
+  server is intended for this resource — can restore the old behavior by
+  passing `validate_resource=False` explicitly:
+
+  ```python
+  from mcp_authflow_resource import IntrospectionTokenVerifier
+
+  verifier = IntrospectionTokenVerifier(
+      introspection_endpoint="https://auth.example.com/introspect",
+      server_url="https://mcp.example.com",
+      validate_resource=False,  # opt out of RFC 8707 audience binding
+  )
+  ```
+
 ## 0.4.0
 
 ### Added

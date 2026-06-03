@@ -11,7 +11,12 @@ control tool-call rates:
   feedback loop.
 """
 
-__version__ = "0.4.0"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("mcp-authflow-resource")
+except PackageNotFoundError:  # pragma: no cover - package not installed (e.g. source tree)
+    __version__ = "0.0.0+unknown"
 
 from mcp_authflow_resource.auth import (
     ClientAuthMethod,
