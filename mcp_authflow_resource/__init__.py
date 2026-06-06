@@ -6,7 +6,7 @@ control tool-call rates:
 - **Token verification** — RFC 7662 token introspection against any
   mcpauth-compatible issuer.
 - **OAuth discovery** — Auto-configures ``.well-known`` endpoints
-  (RFC 8414 / RFC 9908).
+  (RFC 8414 / RFC 9728).
 - **Friction control** — Dynamic tool-call rate limiting via proportional
   feedback loop.
 """

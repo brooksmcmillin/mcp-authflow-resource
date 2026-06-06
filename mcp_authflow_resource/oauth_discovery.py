@@ -3,7 +3,7 @@
 Registers the standard set of well-known endpoints that MCP clients need
 to discover OAuth configuration and complete the authorization flow:
 
-- RFC 9908: Protected Resource Metadata
+- RFC 9728: Protected Resource Metadata
 - RFC 8414: Authorization Server Metadata
 - OpenID Connect Discovery (alias for RFC 8414)
 
@@ -65,7 +65,7 @@ def _build_protected_resource_metadata(
     *,
     resource_documentation: str | None = None,
 ) -> dict[str, Any]:
-    """Build OAuth 2.0 Protected Resource Metadata (RFC 9908)."""
+    """Build OAuth 2.0 Protected Resource Metadata (RFC 9728)."""
     metadata: dict[str, Any] = {
         "resource": resource_url,
         "authorization_servers": [auth_url],
@@ -91,7 +91,7 @@ def register_oauth_discovery_endpoints(
     This registers the full set of well-known endpoints that MCP clients
     expect when performing OAuth discovery:
 
-    - GET /.well-known/oauth-protected-resource  (RFC 9908)
+    - GET /.well-known/oauth-protected-resource  (RFC 9728)
     - GET /mcp/.well-known/oauth-protected-resource  (path-specific)
     - GET /.well-known/oauth-authorization-server  (RFC 8414)
     - GET /.well-known/oauth-authorization-server/mcp  (path-specific)
@@ -116,11 +116,11 @@ def register_oauth_discovery_endpoints(
     resource_url = server_url.rstrip("/")
     auth_url = auth_server_public_url.rstrip("/")
 
-    # --- RFC 9908: Protected Resource Metadata ---
+    # --- RFC 9728: Protected Resource Metadata ---
 
     @app.custom_route("/.well-known/oauth-protected-resource", methods=["GET"])
     async def oauth_protected_resource(request: Request) -> JSONResponse:  # noqa: ARG001
-        """OAuth 2.0 Protected Resource Metadata (RFC 9908)."""
+        """OAuth 2.0 Protected Resource Metadata (RFC 9728)."""
         return JSONResponse(
             _build_protected_resource_metadata(
                 resource_url,
@@ -132,7 +132,7 @@ def register_oauth_discovery_endpoints(
 
     @app.custom_route("/mcp/.well-known/oauth-protected-resource", methods=["GET"])
     async def oauth_protected_resource_mcp(request: Request) -> JSONResponse:  # noqa: ARG001
-        """OAuth 2.0 Protected Resource Metadata for /mcp path (RFC 9908)."""
+        """OAuth 2.0 Protected Resource Metadata for /mcp path (RFC 9728)."""
         return JSONResponse(
             _build_protected_resource_metadata(
                 resource_url,
