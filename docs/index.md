@@ -7,7 +7,7 @@ OAuth 2.0 **Resource Server** framework for [MCP](https://modelcontextprotocol.i
 ## What's in the box
 
 - **Token verification** via RFC 7662 introspection with SSRF protection
-- **OAuth discovery** endpoints (RFC 9908, RFC 8414, OIDC)
+- **OAuth discovery** endpoints (RFC 9728, RFC 8414, OIDC)
 - **Friction control**: dynamic tool-call rate limiting via proportional feedback loop
 - **Response validation** helpers for MCP tool implementations
 - **ASGI middleware** for path normalization and request logging

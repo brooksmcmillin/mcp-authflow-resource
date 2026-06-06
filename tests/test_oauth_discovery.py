@@ -39,7 +39,7 @@ def _make_app_with_discovery(
 
 
 class TestProtectedResourceMetadata:
-    """RFC 9908: Protected Resource Metadata endpoints."""
+    """RFC 9728: Protected Resource Metadata endpoints."""
 
     def test_main_endpoint(self) -> None:
         client = _make_app_with_discovery()

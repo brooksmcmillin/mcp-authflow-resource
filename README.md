@@ -7,7 +7,7 @@ Pair with [mcp-authflow](https://github.com/brooksmcmillin/mcp-authflow) on the 
 ## Features
 
 - **Token verification** via RFC 7662 introspection with SSRF protection
-- **OAuth discovery** endpoints (RFC 9908, RFC 8414, OIDC)
+- **OAuth discovery** endpoints (RFC 9728, RFC 8414, OIDC)
 - **Friction control** -- dynamic tool-call rate limiting using a proportional feedback loop
 - **Response validation** helpers for MCP tool implementations
 - **ASGI middleware** for path normalization and request logging
@@ -48,7 +48,7 @@ app = FastMCP(
     ),
 )
 
-# 3. Register OAuth discovery endpoints (RFC 9908 + RFC 8414)
+# 3. Register OAuth discovery endpoints (RFC 9728 + RFC 8414)
 register_oauth_discovery_endpoints(
     app,
     server_url="https://mcp.example.com",
@@ -182,8 +182,8 @@ register_oauth_discovery_endpoints(
 
 | Endpoint | Spec |
 |----------|------|
-| `GET /.well-known/oauth-protected-resource` | RFC 9908 |
-| `GET /mcp/.well-known/oauth-protected-resource` | RFC 9908 (path-scoped) |
+| `GET /.well-known/oauth-protected-resource` | RFC 9728 |
+| `GET /mcp/.well-known/oauth-protected-resource` | RFC 9728 (path-scoped) |
 | `GET /.well-known/oauth-authorization-server` | RFC 8414 |
 | `GET /.well-known/oauth-authorization-server/mcp` | RFC 8414 (path-scoped) |
 | `GET /.well-known/openid-configuration` | OIDC Discovery |

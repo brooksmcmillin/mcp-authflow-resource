@@ -35,8 +35,8 @@ When you call [`register_oauth_discovery_endpoints`][mcp_authflow_resource.regis
 
 | Endpoint | Spec |
 |---|---|
-| `GET /.well-known/oauth-protected-resource` | [RFC 9908](https://datatracker.ietf.org/doc/html/rfc9908) |
-| `GET /mcp/.well-known/oauth-protected-resource` | RFC 9908 (path-scoped) |
+| `GET /.well-known/oauth-protected-resource` | [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) |
+| `GET /mcp/.well-known/oauth-protected-resource` | RFC 9728 (path-scoped) |
 | `GET /.well-known/oauth-authorization-server` | [RFC 8414](https://datatracker.ietf.org/doc/html/rfc8414) |
 | `GET /.well-known/oauth-authorization-server/mcp` | RFC 8414 (path-scoped) |
 | `GET /.well-known/openid-configuration` | OIDC Discovery |
