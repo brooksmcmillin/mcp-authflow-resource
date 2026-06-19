@@ -149,7 +149,7 @@ class IntrospectionTokenVerifier(TokenVerifier):
                 access_token = AccessToken(
                     token=token,
                     client_id=data_resp.get("client_id", "unknown"),
-                    scopes=data_resp.get("scope", "").split() if data_resp.get("scope") else [],
+                    scopes=self._parse_scopes(data_resp.get("scope")),
                     expires_at=data_resp.get("exp"),
                     resource=data_resp.get("aud"),  # Include resource in token
                 )
@@ -157,6 +157,21 @@ class IntrospectionTokenVerifier(TokenVerifier):
             except Exception as e:
                 logger.warning("Token introspection failed: %s", e)
                 return None
+
+    @staticmethod
+    def _parse_scopes(raw_scope: Any) -> list[str]:
+        """Normalize the introspection ``scope`` claim into a list.
+
+        RFC 7662 defines ``scope`` as a space-delimited string, but some
+        authorization servers (e.g. Keycloak, Okta) return it as a JSON array.
+        Handle both formats so list-format scopes do not raise AttributeError
+        and reject otherwise-valid tokens.
+        """
+        if isinstance(raw_scope, list):
+            return [str(scope) for scope in raw_scope]
+        if isinstance(raw_scope, str) and raw_scope:
+            return raw_scope.split()
+        return []
 
     def _validate_resource(self, token_data: dict[str, Any]) -> bool:
         """Validate token was issued for this resource server."""
