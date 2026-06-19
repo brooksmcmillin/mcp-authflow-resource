@@ -275,6 +275,24 @@ class TestTokenActiveFlag:
         assert result is not None
         assert result.scopes == []
 
+    async def test_list_format_scope_is_accepted(self) -> None:
+        """An AS returning scope as a JSON array (Keycloak, Okta) is parsed,
+        not rejected via AttributeError."""
+        verifier = _make_verifier()
+        token_data = {"active": True, "client_id": "c", "scope": ["read", "write"]}
+        mock_response = _mock_http_response(200, token_data)
+        mock_post = AsyncMock(return_value=mock_response)
+
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            mock_client_cls.return_value.__aenter__ = AsyncMock(
+                return_value=MagicMock(post=mock_post)
+            )
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            result = await verifier.verify_token("tok")
+
+        assert result is not None
+        assert result.scopes == ["read", "write"]
+
     async def test_unknown_client_id_defaults_to_unknown(self) -> None:
         """When client_id is absent, the AccessToken gets 'unknown' as client_id."""
         verifier = _make_verifier()
