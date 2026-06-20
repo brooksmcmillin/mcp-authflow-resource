@@ -64,6 +64,9 @@ What this package deliberately does **not** provide:
 
 The introspection endpoint URL is a foot-gun: if you read it from config or a discovery document, an attacker could redirect it at internal services. [`is_safe_url`][mcp_authflow_resource.is_safe_url] enforces a small safe-by-default policy. HTTPS is always allowed. HTTP is allowed only to `localhost`, loopback addresses, or non-DNS hostnames (Docker / k8s service names); HTTP to any DNS-resolvable external host is rejected.
 
+!!! warning "Not a general-purpose SSRF filter"
+    `is_safe_url` does **not** resolve DNS — any `https://` URL with a non-IP hostname is accepted regardless of the address it resolves to. This is intentional for *operator-configured* endpoints, where you control the URL. Do not reuse it to validate untrusted, user-supplied URLs (webhooks, fetch targets); for those you must resolve the hostname and reject private/internal targets yourself (and pin the resolved IP to defend against DNS rebinding). See the function docstring for details.
+
 [`IntrospectionTokenVerifier`][mcp_authflow_resource.IntrospectionTokenVerifier] runs this check at construction time, so a misconfigured URL fails fast rather than at the first request.
 
 [mcp-authflow]: https://github.com/brooksmcmillin/mcp-authflow

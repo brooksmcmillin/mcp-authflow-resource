@@ -24,6 +24,29 @@ def is_safe_url(url: str, allow_localhost: bool = True) -> bool:
     Implementation uses urlparse + ipaddress to prevent bypass techniques
     including: IPv6 literals, userinfo injection, decimal/hex IP forms,
     null hostnames, and percent-encoded hostnames.
+
+    .. warning::
+        **This is NOT a general-purpose SSRF filter and does NOT resolve DNS.**
+
+        Any ``https://`` URL with a non-IP hostname returns ``True``,
+        regardless of the IP that hostname actually resolves to. A hostname
+        that resolves to a private/internal address (e.g. ``10.x``,
+        ``192.168.x``, ``169.254.x``, ``metadata.google.internal``) passes
+        this check. This is intentional: the function is scoped to validating
+        *operator-configured* authorization-server / introspection endpoints,
+        where the operator — not an attacker — controls the URL.
+
+        Do **not** use this function to validate untrusted, user-supplied URLs
+        (webhooks, fetch targets, etc.). For those cases you must additionally
+        resolve the hostname and reject private targets, e.g.::
+
+            import ipaddress, socket
+            ip = ipaddress.ip_address(socket.gethostbyname(hostname))
+            if ip.is_private or ip.is_loopback or ip.is_link_local:
+                reject()
+
+        Note that even resolve-then-check is vulnerable to DNS rebinding
+        unless the resolved IP is pinned for the actual connection.
     """
     try:
         parsed = urlparse(url)
