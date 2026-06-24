@@ -325,9 +325,44 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from mcp_auth_framework.responses import invalid_request
-from mcp_auth_framework.storage import MemoryTokenStorage
-from mcp_auth_framework.validation import parse_scope_field
+def invalid_request(message: str) -> JSONResponse:
+    return JSONResponse(
+        {"error": "invalid_request", "error_description": message},
+        status_code=400,
+    )
+
+
+def parse_scope_field(value: object) -> str:
+    return " ".join(str(value or "").split())
+
+
+class MemoryTokenStorage:
+    def __init__(self) -> None:
+        self._tokens: dict[str, dict[str, object]] = {}
+
+    async def initialize(self) -> None:
+        return None
+
+    async def close(self) -> None:
+        self._tokens.clear()
+
+    async def store_token(
+        self,
+        *,
+        token: str,
+        client_id: str,
+        scopes: list[str],
+        expires_at: int,
+    ) -> None:
+        self._tokens[token] = {
+            "client_id": client_id,
+            "scopes": scopes,
+            "expires_at": expires_at,
+        }
+
+    async def load_token(self, token: str) -> dict[str, object] | None:
+        return self._tokens.get(token)
+
 
 storage = MemoryTokenStorage()
 
