@@ -22,6 +22,23 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
 
 ### Security
 
+## 0.5.1
+
+### Fixed
+
+- **`IntrospectionTokenVerifier` now accepts a list-format `scope` claim.**
+  RFC 7662 defines `scope` as a space-delimited string, but some authorization
+  servers (e.g. Keycloak, Okta) return it as a JSON array. List-format scopes
+  previously raised `AttributeError` and rejected otherwise-valid tokens. (#37)
+
+### Documentation
+
+- Clarified that `is_safe_url` is not a general-purpose SSRF filter: it does not
+  resolve DNS and must not be used to validate untrusted, user-supplied URLs.
+  (#38)
+- Corrected Protected Resource Metadata references from RFC 9908 to RFC 9728.
+  (#34)
+
 ## 0.5.0
 
 ### Security
