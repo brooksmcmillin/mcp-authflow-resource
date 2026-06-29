@@ -63,7 +63,9 @@ class IntrospectionTokenVerifier(TokenVerifier):
         self._client_id = client_id
         self._client_secret = client_secret
         self._client_auth_method: ClientAuthMethod = (
-            "none" if client_secret is None else client_auth_method
+            "none"
+            if client_secret is None and client_auth_method != "bearer"
+            else client_auth_method
         )
 
         if self._client_auth_method in ("client_secret_basic", "client_secret_post"):

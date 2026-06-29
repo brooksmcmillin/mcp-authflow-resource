@@ -633,3 +633,12 @@ class TestClientAuth:
             client_auth_method="bearer",
         )
         assert verifier is not None
+
+    def test_bearer_without_client_secret_raises(self) -> None:
+        """Explicit bearer with no client_secret is a misconfiguration, not silent no-auth."""
+        with pytest.raises(ValueError, match="bearer.*requires client_secret"):
+            IntrospectionTokenVerifier(
+                introspection_endpoint=INTROSPECTION_URL,
+                server_url=SERVER_URL,
+                client_auth_method="bearer",
+            )
