@@ -22,6 +22,11 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
 
 ### Security
 
+- **`IntrospectionTokenVerifier` now rejects `client_auth_method="bearer"` with
+  no `client_secret`.** Previously an explicit `bearer` method without a secret
+  was silently downgraded to `"none"`, disabling the introspection auth the
+  operator had requested. Construction now raises `ValueError`. (#5)
+
 ## 0.5.1
 
 ### Fixed
