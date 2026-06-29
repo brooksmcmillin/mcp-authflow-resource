@@ -12,6 +12,19 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
 
 ### Added
 
+- **Optional introspection result caching in `IntrospectionTokenVerifier`.**
+  The new `introspection_cache_ttl` parameter (seconds; `0.0` = disabled, the
+  default) caches successful, resource-validated introspections so a burst of
+  requests bearing the same token performs a single introspection instead of
+  one per request. This prevents the authorization server's `/introspect`
+  endpoint from being hammered — and rate-limited (HTTP 429) — under load, which
+  previously surfaced to clients as spurious 401s. Each entry's lifetime is
+  capped at `min(ttl, token_exp - now)` so a cached token is never served past
+  its own expiry; `active: false`, resource-validation failures, and non-200
+  responses are never cached. Cache size is bounded by
+  `introspection_cache_max_size` (default 1024, oldest-evicted). Caching is
+  opt-in because it trades revocation latency for throughput.
+
 ### Changed
 
 ### Deprecated
