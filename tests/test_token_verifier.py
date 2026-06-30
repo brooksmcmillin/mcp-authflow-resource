@@ -495,6 +495,22 @@ class TestValidateResourceMethod:
         # resource_url will be empty/None
         assert verifier._validate_resource({"aud": SERVER_URL}) is False
 
+    def test_is_valid_resource_returns_false_when_resource_url_none(self) -> None:
+        """_is_valid_resource short-circuits to False when resource_url is empty.
+
+        This guard is distinct from the one in _validate_resource: a caller
+        could reach _is_valid_resource directly with a still-empty resource_url,
+        so it must fail closed on its own rather than rely on the earlier check.
+        """
+        verifier = IntrospectionTokenVerifier(
+            introspection_endpoint=INTROSPECTION_URL,
+            server_url="",
+            validate_resource=True,
+        )
+        # server_url="" resolves resource_url to an empty/None value.
+        assert not verifier.resource_url
+        assert verifier._is_valid_resource("https://mcp.example.com") is False
+
     def test_list_aud_all_mismatched_returns_false(self) -> None:
         verifier = self._make()
         assert (
