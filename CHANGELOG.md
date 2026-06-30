@@ -12,6 +12,20 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## 0.5.2
+
+### Added
+
 - **Optional introspection result caching in `IntrospectionTokenVerifier`.**
   The new `introspection_cache_ttl` parameter (seconds; `0.0` = disabled, the
   default) caches successful, resource-validated introspections so a burst of
@@ -23,15 +37,7 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
   its own expiry; `active: false`, resource-validation failures, and non-200
   responses are never cached. Cache size is bounded by
   `introspection_cache_max_size` (default 1024, oldest-evicted). Caching is
-  opt-in because it trades revocation latency for throughput.
-
-### Changed
-
-### Deprecated
-
-### Removed
-
-### Fixed
+  opt-in because it trades revocation latency for throughput. (#42)
 
 ### Security
 

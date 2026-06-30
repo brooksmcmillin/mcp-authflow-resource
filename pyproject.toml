@@ -1,6 +1,6 @@
 [project]
 name = "mcp-authflow-resource"
-version = "0.5.1"
+version = "0.5.2"
 description = "OAuth 2.0 Resource Server framework for MCP (Model Context Protocol) servers"
 readme = "README.md"
 requires-python = ">=3.11"
