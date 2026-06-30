@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
+from mcp_authflow_resource.auth import token_verifier as token_verifier_module
 from mcp_authflow_resource.auth.token_verifier import IntrospectionTokenVerifier
 
 # ---------------------------------------------------------------------------
@@ -54,6 +55,33 @@ def _mock_http_response(
     response.status_code = status_code
     response.json.return_value = json_data or {}
     return response
+
+
+def _patch_client(mock_post: AsyncMock) -> Any:
+    """Return a patch context for httpx.AsyncClient wired to ``mock_post``."""
+    patcher = patch("httpx.AsyncClient")
+    mock_client_cls = patcher.start()
+    mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=MagicMock(post=mock_post))
+    mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+    return patcher
+
+
+class _FakeClock:
+    """Controllable stand-in for the ``time`` module used by the verifier."""
+
+    def __init__(self, monotonic: float = 1000.0, wall: float = 1_000_000.0) -> None:
+        self._monotonic = monotonic
+        self._wall = wall
+
+    def advance(self, seconds: float) -> None:
+        self._monotonic += seconds
+        self._wall += seconds
+
+    def monotonic(self) -> float:
+        return self._monotonic
+
+    def time(self) -> float:
+        return self._wall
 
 
 # ---------------------------------------------------------------------------
@@ -642,3 +670,199 @@ class TestClientAuth:
                 server_url=SERVER_URL,
                 client_auth_method="bearer",
             )
+
+
+# ---------------------------------------------------------------------------
+# Introspection caching tests
+# ---------------------------------------------------------------------------
+
+# Token whose `exp` is far enough out that the cache TTL, not the token expiry,
+# governs the entry lifetime in tests that don't care about exp-capping.
+_LONG_LIVED_TOKEN: dict[str, Any] = {**_ACTIVE_TOKEN_DATA, "exp": 9_999_999_999}
+
+
+def _cached_verifier(ttl: float = 300.0, **kwargs: Any) -> IntrospectionTokenVerifier:
+    return IntrospectionTokenVerifier(
+        introspection_endpoint=INTROSPECTION_URL,
+        server_url=SERVER_URL,
+        validate_resource=False,
+        introspection_cache_ttl=ttl,
+        **kwargs,
+    )
+
+
+class TestIntrospectionCaching:
+    """verify_token caches successful introspections when a TTL is configured."""
+
+    async def test_caching_disabled_by_default(self) -> None:
+        """With no TTL configured, every call performs a fresh introspection."""
+        verifier = _make_verifier()  # default ttl == 0.0 -> disabled
+        mock_post = AsyncMock(return_value=_mock_http_response(200, _LONG_LIVED_TOKEN))
+
+        patcher = _patch_client(mock_post)
+        try:
+            assert await verifier.verify_token("tok") is not None
+            assert await verifier.verify_token("tok") is not None
+        finally:
+            patcher.stop()
+
+        assert mock_post.call_count == 2
+
+    async def test_cache_hit_skips_second_introspection(self) -> None:
+        """A second call for the same token is served from cache (no HTTP call)."""
+        verifier = _cached_verifier()
+        mock_post = AsyncMock(return_value=_mock_http_response(200, _LONG_LIVED_TOKEN))
+
+        patcher = _patch_client(mock_post)
+        try:
+            first = await verifier.verify_token("tok")
+            second = await verifier.verify_token("tok")
+        finally:
+            patcher.stop()
+
+        assert first is not None and second is not None
+        assert second.client_id == first.client_id
+        assert mock_post.call_count == 1
+
+    async def test_distinct_tokens_are_cached_separately(self) -> None:
+        """Different tokens do not collide in the cache."""
+        verifier = _cached_verifier()
+        mock_post = AsyncMock(return_value=_mock_http_response(200, _LONG_LIVED_TOKEN))
+
+        patcher = _patch_client(mock_post)
+        try:
+            await verifier.verify_token("tok-a")
+            await verifier.verify_token("tok-b")
+        finally:
+            patcher.stop()
+
+        assert mock_post.call_count == 2
+
+    async def test_cache_expires_after_ttl(self) -> None:
+        """Once the TTL elapses, the next call re-introspects."""
+        verifier = _cached_verifier(ttl=10.0)
+        clock = _FakeClock()
+        mock_post = AsyncMock(return_value=_mock_http_response(200, _LONG_LIVED_TOKEN))
+
+        patcher = _patch_client(mock_post)
+        try:
+            with patch.object(token_verifier_module, "time", clock):
+                await verifier.verify_token("tok")
+                clock.advance(11.0)  # past the 10s TTL
+                await verifier.verify_token("tok")
+        finally:
+            patcher.stop()
+
+        assert mock_post.call_count == 2
+
+    async def test_entry_lifetime_capped_by_token_exp(self) -> None:
+        """A token expiring sooner than the TTL is never served past its expiry."""
+        verifier = _cached_verifier(ttl=300.0)
+        clock = _FakeClock()
+        short_token = {**_ACTIVE_TOKEN_DATA, "exp": int(clock.time()) + 5}
+        mock_post = AsyncMock(return_value=_mock_http_response(200, short_token))
+
+        patcher = _patch_client(mock_post)
+        try:
+            with patch.object(token_verifier_module, "time", clock):
+                await verifier.verify_token("tok")
+                clock.advance(6.0)  # past token exp (+5) but well within TTL (300)
+                await verifier.verify_token("tok")
+        finally:
+            patcher.stop()
+
+        assert mock_post.call_count == 2
+
+    async def test_revocation_reflected_after_ttl_expiry(self) -> None:
+        """Once the cached entry expires, an active:false response is honored.
+
+        This documents the revocation-latency tradeoff: a token cached as active
+        keeps being accepted (without re-introspecting) until its entry expires,
+        after which the next introspection observes the revocation and the cache
+        is left empty.
+        """
+        verifier = _cached_verifier(ttl=10.0)
+        clock = _FakeClock()
+        active = _mock_http_response(200, _LONG_LIVED_TOKEN)
+        inactive = _mock_http_response(200, {"active": False})
+        mock_post = AsyncMock(side_effect=[active, inactive])
+
+        patcher = _patch_client(mock_post)
+        try:
+            with patch.object(token_verifier_module, "time", clock):
+                assert await verifier.verify_token("tok") is not None  # cached active
+                clock.advance(11.0)  # fast-path entry expires
+                assert await verifier.verify_token("tok") is None  # re-introspect -> inactive
+        finally:
+            patcher.stop()
+
+        assert mock_post.call_count == 2
+        assert len(verifier._cache) == 0
+
+    async def test_burst_after_cache_hit_avoids_introspect(self) -> None:
+        """The cache hit is what prevents 429s: repeated calls don't re-introspect.
+
+        This is the core fix — during a burst, only the first call reaches the
+        authorization server, so its ``/introspect`` rate limit is never tripped.
+        """
+        verifier = _cached_verifier()
+        mock_post = AsyncMock(return_value=_mock_http_response(200, _LONG_LIVED_TOKEN))
+
+        patcher = _patch_client(mock_post)
+        try:
+            results = [await verifier.verify_token("tok") for _ in range(25)]
+        finally:
+            patcher.stop()
+
+        assert all(r is not None for r in results)
+        assert mock_post.call_count == 1
+
+    async def test_non_200_is_not_cached(self) -> None:
+        """A non-200 (e.g. 429) returns None and leaves the cache empty."""
+        verifier = _cached_verifier()
+        mock_post = AsyncMock(return_value=_mock_http_response(429, {}))
+
+        patcher = _patch_client(mock_post)
+        try:
+            result = await verifier.verify_token("tok")
+        finally:
+            patcher.stop()
+
+        assert result is None
+        assert len(verifier._cache) == 0
+
+    async def test_cache_key_does_not_store_raw_token(self) -> None:
+        """The raw bearer token must not appear as a cache key."""
+        verifier = _cached_verifier()
+        mock_post = AsyncMock(return_value=_mock_http_response(200, _LONG_LIVED_TOKEN))
+
+        patcher = _patch_client(mock_post)
+        try:
+            await verifier.verify_token("super-secret-token")  # noqa: S106
+        finally:
+            patcher.stop()
+
+        assert "super-secret-token" not in verifier._cache
+        assert len(verifier._cache) == 1
+
+    async def test_invalid_max_size_raises(self) -> None:
+        """A non-positive cache size is rejected at construction."""
+        with pytest.raises(ValueError, match="introspection_cache_max_size"):
+            _cached_verifier(introspection_cache_max_size=0)
+
+    async def test_max_size_evicts_oldest_entry(self) -> None:
+        """With max_size=1, caching a second token evicts the first."""
+        verifier = _cached_verifier(introspection_cache_max_size=1)
+        mock_post = AsyncMock(return_value=_mock_http_response(200, _LONG_LIVED_TOKEN))
+
+        patcher = _patch_client(mock_post)
+        try:
+            await verifier.verify_token("tok-a")  # cached
+            await verifier.verify_token("tok-b")  # evicts tok-a
+            await verifier.verify_token("tok-a")  # must re-introspect
+        finally:
+            patcher.stop()
+
+        assert verifier._cache_max_size == 1
+        assert len(verifier._cache) == 1
+        assert mock_post.call_count == 3

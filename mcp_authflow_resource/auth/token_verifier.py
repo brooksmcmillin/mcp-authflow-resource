@@ -1,7 +1,11 @@
 """Token verifier implementation using OAuth 2.0 Token Introspection (RFC 7662)."""
 
+import asyncio
 import base64
+import hashlib
 import logging
+import time
+from collections import OrderedDict
 from typing import Any, Literal
 
 from mcp.server.auth.provider import AccessToken, TokenVerifier
@@ -10,6 +14,10 @@ from mcp.shared.auth_utils import check_resource_allowed, resource_url_from_serv
 from mcp_authflow_resource.auth.ssrf_protection import is_safe_url
 
 logger = logging.getLogger(__name__)
+
+# Default ceiling on the number of cached introspection results, bounding memory
+# when caching is enabled (CWE-770). Oldest entries are evicted first.
+_DEFAULT_CACHE_MAX_SIZE = 1024
 
 ClientAuthMethod = Literal[
     "none",
@@ -44,6 +52,21 @@ class IntrospectionTokenVerifier(TokenVerifier):
     resource server B that shares the same authorization server. Set it to
     ``False`` only for single-resource-server deployments where every token
     issued by the authorization server is intended for this resource.
+
+    **Introspection caching.** By default the verifier introspects on every
+    request. Set ``introspection_cache_ttl`` to a positive number of seconds to
+    cache *successful* (active, resource-valid) introspections, so a burst of
+    requests bearing the same token results in one introspection rather than one
+    per request. This keeps the authorization server from being hammered (and
+    rate-limited) under load — the failure mode this option exists to prevent.
+    Caching is **opt-in** because it trades revocation latency for throughput: a
+    revoked token may still be accepted until its cache entry expires. Each
+    entry's lifetime is capped at ``min(introspection_cache_ttl, token_exp -
+    now)`` so a cached token is never served past its own expiry, and a
+    definitive ``active: false`` response immediately drops any cached entry for
+    that token. Only successful results are cached — ``active: false``,
+    resource-validation failures, transport errors, and non-200 responses are
+    never cached and fall through to the usual ``None`` (auth-failure) result.
     """
 
     def __init__(
@@ -55,6 +78,8 @@ class IntrospectionTokenVerifier(TokenVerifier):
         client_id: str | None = None,
         client_secret: str | None = None,
         client_auth_method: ClientAuthMethod = "client_secret_basic",
+        introspection_cache_ttl: float = 0.0,
+        introspection_cache_max_size: int = _DEFAULT_CACHE_MAX_SIZE,
     ):
         self.introspection_endpoint = introspection_endpoint
         self.server_url = server_url
@@ -76,6 +101,58 @@ class IntrospectionTokenVerifier(TokenVerifier):
                 )
         elif self._client_auth_method == "bearer" and self._client_secret is None:
             raise ValueError("client_auth_method='bearer' requires client_secret")
+
+        if introspection_cache_max_size <= 0:
+            raise ValueError("introspection_cache_max_size must be a positive integer")
+
+        # Introspection result cache. Keyed by a SHA-256 of the token (so raw
+        # bearer tokens are not held in the cache dict), valued by
+        # ``(AccessToken, expiry_monotonic)``. Disabled when TTL <= 0.
+        self._cache_ttl = introspection_cache_ttl
+        self._cache_max_size = introspection_cache_max_size
+        self._cache: OrderedDict[str, tuple[AccessToken, float]] = OrderedDict()
+        self._cache_lock = asyncio.Lock()
+
+    @property
+    def _cache_enabled(self) -> bool:
+        return self._cache_ttl > 0
+
+    @staticmethod
+    def _cache_key(token: str) -> str:
+        """Derive a cache key that does not store the raw bearer token."""
+        return hashlib.sha256(token.encode()).hexdigest()
+
+    async def _cache_get(self, key: str) -> AccessToken | None:
+        """Return a non-expired cached token, or ``None``. Evicts if expired."""
+        async with self._cache_lock:
+            entry = self._cache.get(key)
+            if entry is None:
+                return None
+            access_token, expiry = entry
+            if time.monotonic() >= expiry:
+                del self._cache[key]
+                return None
+            self._cache.move_to_end(key)  # LRU: mark recently used
+            return access_token
+
+    async def _cache_put(self, key: str, access_token: AccessToken, expires_at: int | None) -> None:
+        """Store a successful introspection, capping lifetime at the token's expiry."""
+        lifetime = self._cache_ttl
+        if expires_at is not None:
+            # Never serve a token past its own expiry.
+            lifetime = min(lifetime, expires_at - time.time())
+        if lifetime <= 0:
+            return
+        async with self._cache_lock:
+            self._cache[key] = (access_token, time.monotonic() + lifetime)
+            self._cache.move_to_end(key)
+            while len(self._cache) > self._cache_max_size:
+                self._cache.popitem(last=False)  # evict oldest
+
+    async def _cache_drop(self, key: str) -> None:
+        """Remove any cached entry for ``key`` (e.g. token now reported inactive)."""
+        async with self._cache_lock:
+            self._cache.pop(key, None)
 
     def _apply_client_auth(
         self,
@@ -109,6 +186,16 @@ class IntrospectionTokenVerifier(TokenVerifier):
             )
             return None
 
+        cache_key = self._cache_key(token) if self._cache_enabled else None
+
+        # Cache fast path: a recent successful introspection for this token
+        # short-circuits the network round-trip entirely.
+        if cache_key is not None:
+            cached = await self._cache_get(cache_key)
+            if cached is not None:
+                logger.debug("Token introspection served from cache")
+                return cached
+
         # Configure secure HTTP client
         timeout = httpx.Timeout(10.0, connect=5.0)
         limits = httpx.Limits(max_connections=10, max_keepalive_connections=5)
@@ -139,6 +226,9 @@ class IntrospectionTokenVerifier(TokenVerifier):
                 data_resp = response.json()
                 if not data_resp.get("active", False):
                     logger.debug("Token marked as inactive")
+                    # Authoritative negative — reflect revocation immediately.
+                    if cache_key is not None:
+                        await self._cache_drop(cache_key)
                     return None
 
                 # RFC 8707 resource validation (enabled by default)
@@ -155,6 +245,8 @@ class IntrospectionTokenVerifier(TokenVerifier):
                     expires_at=data_resp.get("exp"),
                     resource=data_resp.get("aud"),  # Include resource in token
                 )
+                if cache_key is not None:
+                    await self._cache_put(cache_key, access_token, access_token.expires_at)
                 return access_token
             except Exception as e:
                 logger.warning("Token introspection failed: %s", e)
