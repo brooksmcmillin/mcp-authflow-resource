@@ -98,6 +98,86 @@ class TestLRUEviction:
         assert small_registry.get_client_status("client-b") is None
 
 
+class TestPenaltyPersistence:
+    """Accrued friction must survive LRU eviction (CWE-799 bypass fix)."""
+
+    @staticmethod
+    def _penalty_registry(**kwargs: object) -> FrictionRegistry:
+        params: dict[str, object] = {
+            "default_config": ControllerConfig(warmup_calls=0, time_decay_rate=0.0),
+            "tool_configs": {"delete_task": ToolFrictionConfig(target_rate=0.05)},
+            "max_clients": 1,
+            "penalty_min_friction": 0.05,
+        }
+        params.update(kwargs)
+        return FrictionRegistry(**params)  # type: ignore[arg-type]
+
+    @pytest.mark.asyncio
+    async def test_friction_survives_forced_eviction(self) -> None:
+        reg = self._penalty_registry()
+
+        # Client A accrues high friction.
+        for _ in range(40):
+            await reg.check_and_record("client-a", "delete_task")
+        friction_a = reg.get_client_status("client-a")["delete_task"]["friction"]  # type: ignore[index]
+        assert friction_a >= 0.05
+
+        # Forcing A's eviction (max_clients=1) then reconnecting must not
+        # reset friction — the bypass the issue describes.
+        await reg.check_and_record("client-b", "delete_task")
+        assert reg.get_client_status("client-a") is None
+
+        await reg.check_and_record("client-a", "delete_task")
+        restored = reg.get_client_status("client-a")["delete_task"]["friction"]  # type: ignore[index]
+        assert restored >= friction_a
+
+    @pytest.mark.asyncio
+    async def test_penalty_store_disabled(self) -> None:
+        reg = self._penalty_registry(penalty_ttl=0.0)
+
+        for _ in range(40):
+            await reg.check_and_record("client-a", "delete_task")
+        await reg.check_and_record("client-b", "delete_task")  # evicts A, no capture
+        await reg.check_and_record("client-a", "delete_task")  # fresh controller
+
+        # Only freshly-accrued friction from the reconnect call, not the
+        # ~1.0 penalty that would be restored.
+        restored = reg.get_client_status("client-a")["delete_task"]["friction"]  # type: ignore[index]
+        assert restored < 0.1
+
+    @pytest.mark.asyncio
+    async def test_expired_penalty_not_restored(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import mcp_authflow_resource.friction.registry as registry_module
+
+        clock = {"now": 1000.0}
+        monkeypatch.setattr(registry_module.time, "monotonic", lambda: clock["now"])
+
+        reg = self._penalty_registry(penalty_ttl=10.0)
+        for _ in range(40):
+            await reg.check_and_record("client-a", "delete_task")
+
+        await reg.check_and_record("client-b", "delete_task")  # captures A at t=1000
+
+        # Advance past the penalty TTL before A reconnects.
+        clock["now"] = 1000.0 + 11.0
+        await reg.check_and_record("client-a", "delete_task")
+
+        restored = reg.get_client_status("client-a")["delete_task"]["friction"]  # type: ignore[index]
+        assert restored < 0.1
+
+    @pytest.mark.asyncio
+    async def test_low_friction_not_persisted(self) -> None:
+        reg = self._penalty_registry(penalty_min_friction=0.9)
+
+        # A single call keeps friction well below the persist threshold.
+        await reg.check_and_record("client-a", "delete_task")
+        await reg.check_and_record("client-b", "delete_task")  # evicts A
+        await reg.check_and_record("client-a", "delete_task")
+
+        restored = reg.get_client_status("client-a")["delete_task"]["friction"]  # type: ignore[index]
+        assert restored < 0.1
+
+
 class TestConcurrency:
     @pytest.mark.asyncio
     async def test_concurrent_same_client(self, registry: FrictionRegistry) -> None:
