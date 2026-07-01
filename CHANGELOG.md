@@ -22,6 +22,16 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
 
 ### Security
 
+- **Friction state now survives LRU eviction (CWE-799).** A client that had
+  accrued high friction could previously reset it to zero by forcing its own
+  LRU eviction — registering `max_clients + 1` distinct OAuth `client_id`s and
+  reconnecting with a fresh, zero-friction controller. `FrictionRegistry` now
+  keeps a lightweight, non-evictable penalty store that records an evicted
+  client's per-tool friction and restores it (as a floor) onto the controller
+  it gets on reconnect. Tunable via the new `penalty_ttl` (default `3600.0`s;
+  `0.0` disables and restores the legacy fresh-on-eviction behaviour) and
+  `penalty_min_friction` (default `0.1`) constructor arguments.
+
 ## 0.5.2
 
 ### Added

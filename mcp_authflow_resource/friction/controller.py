@@ -277,6 +277,25 @@ class FrictionController:
                 old_friction = self._friction_levels.get(tool, 0.0)
                 self._friction_levels[tool] = max(0.0, min(1.0, old_friction + delta))
 
+    def peak_friction_levels(self) -> dict[str, float]:
+        """Snapshot current per-tool friction levels for persistence.
+
+        Used by the registry to carry accrued friction across LRU eviction
+        so a client cannot reset its friction to zero by forcing its own
+        eviction and reconnecting.
+        """
+        return dict(self._friction_levels)
+
+    def restore_friction_levels(self, levels: dict[str, float]) -> None:
+        """Seed friction levels from a persisted snapshot.
+
+        Applied as a floor: a restored value never lowers an existing
+        friction level, and every value is clamped to ``[0.0, 1.0]``.
+        """
+        for tool, friction in levels.items():
+            clamped = max(0.0, min(1.0, friction))
+            self._friction_levels[tool] = max(self._friction_levels.get(tool, 0.0), clamped)
+
     def reset_budget(self, budget: float | None = None) -> None:
         """Reset the budget (e.g., at the start of a new session)."""
         self._budget_remaining = budget if budget is not None else self.config.default_budget

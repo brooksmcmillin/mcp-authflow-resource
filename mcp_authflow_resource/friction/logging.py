@@ -91,6 +91,27 @@ def log_client_evicted(client_id: str, total_clients: int) -> None:
     registry_logger.info("friction_client_evicted %s", json.dumps(extra, separators=(",", ":")))
 
 
+def log_penalty_captured(client_id: str, peak_friction: float, ttl: float) -> None:
+    """Log persistence of an evicted client's accrued friction penalty."""
+    extra = {
+        "event_type": "friction_penalty_captured",
+        "client_id": client_id,
+        "peak_friction": round(peak_friction, 4),
+        "ttl": round(ttl, 3),
+    }
+    registry_logger.info("friction_penalty_captured %s", json.dumps(extra, separators=(",", ":")))
+
+
+def log_penalty_restored(client_id: str, peak_friction: float) -> None:
+    """Log restoration of a persisted friction penalty onto a fresh controller."""
+    extra = {
+        "event_type": "friction_penalty_restored",
+        "client_id": client_id,
+        "peak_friction": round(peak_friction, 4),
+    }
+    registry_logger.info("friction_penalty_restored %s", json.dumps(extra, separators=(",", ":")))
+
+
 def log_client_created(client_id: str, total_clients: int) -> None:
     """Log creation of a new per-client friction controller."""
     extra = {
