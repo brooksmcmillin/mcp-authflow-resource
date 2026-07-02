@@ -8,6 +8,10 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 logger = logging.getLogger(__name__)
 
+# Header names (lower-cased) whose values carry credentials and must be masked
+# when ``mask_auth`` is enabled. Compared case-insensitively.
+_SENSITIVE_HEADERS = frozenset({"authorization", "cookie", "x-api-key", "proxy-authorization"})
+
 
 class NormalizePathMiddleware:
     """ASGI middleware to normalize paths so /mcp and /mcp/ work identically.
@@ -52,7 +56,9 @@ def create_logging_middleware(
 
     Args:
         app: The ASGI application to wrap
-        mask_auth: Whether to mask authorization header values (default: True)
+        mask_auth: Whether to mask credential-bearing header values, i.e. those
+            in ``_SENSITIVE_HEADERS`` such as Authorization, Cookie, X-API-Key,
+            and Proxy-Authorization (default: True)
 
     Returns:
         ASGI middleware function
@@ -90,9 +96,9 @@ def create_logging_middleware(
         # Log all headers
         logger.info("Headers:")
         for name, value in headers.items():
-            # Mask authorization header value for security
-            if mask_auth and name.lower() == "authorization":
-                logger.info("  %s: Bearer ***", name)
+            # Mask credential-bearing header values for security
+            if mask_auth and name.lower() in _SENSITIVE_HEADERS:
+                logger.info("  %s: ***", name)
             else:
                 logger.info("  %s: %s", name, value)
 

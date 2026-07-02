@@ -199,6 +199,55 @@ class TestCreateLoggingMiddleware:
         assert "secret-token" not in messages
         assert "***" in messages
 
+    async def test_sensitive_headers_masked_by_default(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Cookie, X-API-Key and Proxy-Authorization values are masked too."""
+        inner = AsyncMock()
+        mw = create_logging_middleware(inner, mask_auth=True)
+
+        scope = _make_http_scope(
+            "/mcp",
+            headers=[
+                (b"cookie", b"session=cookie-secret"),
+                (b"x-api-key", b"api-key-secret"),
+                (b"proxy-authorization", b"Basic proxy-secret"),
+            ],
+        )
+        log_name = "mcp_authflow_resource.middleware"
+
+        with caplog.at_level(logging.INFO, logger=log_name):
+            await mw(scope, AsyncMock(), AsyncMock())
+
+        messages = " ".join(r.message for r in caplog.records)
+        assert "cookie-secret" not in messages
+        assert "api-key-secret" not in messages
+        assert "proxy-secret" not in messages
+        assert "***" in messages
+
+    async def test_sensitive_headers_not_masked_when_disabled(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Credential headers appear in logs when mask_auth=False."""
+        inner = AsyncMock()
+        mw = create_logging_middleware(inner, mask_auth=False)
+
+        scope = _make_http_scope(
+            "/mcp",
+            headers=[
+                (b"cookie", b"session=cookie-visible"),
+                (b"x-api-key", b"api-key-visible"),
+            ],
+        )
+        log_name = "mcp_authflow_resource.middleware"
+
+        with caplog.at_level(logging.INFO, logger=log_name):
+            await mw(scope, AsyncMock(), AsyncMock())
+
+        messages = " ".join(r.message for r in caplog.records)
+        assert "cookie-visible" in messages
+        assert "api-key-visible" in messages
+
     async def test_authorization_header_not_masked_when_disabled(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
