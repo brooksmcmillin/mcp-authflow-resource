@@ -130,3 +130,14 @@ class TestBypassProtection:
         # Private IPs other than loopback are not in the allowlist
         assert is_safe_url("http://192.168.1.1/") is False
         assert is_safe_url("http://10.0.0.1/") is False
+
+    def test_urlparse_exception_returns_false(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # CPython's urlparse rarely raises, but the guard must fail closed if a
+        # stricter future version (or unexpected input) makes it raise. Patch
+        # urlparse to raise and assert the fallback returns False rather than
+        # propagating the exception.
+        def _raise(_url: str) -> object:
+            raise ValueError("simulated urlparse failure")
+
+        monkeypatch.setattr("mcp_authflow_resource.auth.ssrf_protection.urlparse", _raise)
+        assert is_safe_url("anything") is False
