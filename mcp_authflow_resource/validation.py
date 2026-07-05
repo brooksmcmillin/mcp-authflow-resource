@@ -63,18 +63,21 @@ def validate_list_response(
                 data = data[k]
                 break
         else:
-            # No matching key found - maybe it's a different structure
-            error_msg = (
-                f"Backend returned {context} as dict without expected key: {list(data.keys())}"
+            # No matching key found - maybe it's a different structure.
+            # Keep the client-facing message generic; log the backend keys at
+            # DEBUG only so we don't leak internal field names (CWE-209).
+            error_msg = f"Backend returned {context} in unexpected format"
+            logger.debug(
+                "Unexpected %s structure: keys=%s, data=%s", context, list(data.keys()), data
             )
-            logger.error(error_msg)
             return [], error_msg
 
     if not isinstance(data, list):
         error_msg = (
             f"Backend returned invalid {context} format: expected list, got {type(data).__name__}"
         )
-        logger.error("%s. Value: %s", error_msg, data)
+        # Log the raw value at DEBUG only; it may contain PII or sensitive payloads.
+        logger.debug("%s. Value: %s", error_msg, data)
         return [], error_msg
 
     # Validate each item is a dict
@@ -116,7 +119,8 @@ def validate_dict_response(
         error_msg = (
             f"Backend returned invalid {context} format: expected dict, got {type(data).__name__}"
         )
-        logger.error("%s. Value: %s", error_msg, data)
+        # Log the raw value at DEBUG only; it may contain PII or sensitive payloads.
+        logger.debug("%s. Value: %s", error_msg, data)
         return None, error_msg
 
     return data, None
