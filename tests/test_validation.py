@@ -111,7 +111,17 @@ class TestValidateListResponse:
         result, error = validate_list_response(resp, "items")
         assert result == []
         assert error is not None
-        assert "dict without expected key" in error
+        assert "items" in error
+        assert "unexpected format" in error
+
+    def test_wrapped_dict_no_matching_key_does_not_leak_keys(self) -> None:
+        # The client-facing error must not expose backend field names (CWE-209).
+        resp = MockResponse(success=True, data={"secret_field": 1, "internal_id": 2})
+        result, error = validate_list_response(resp, "items")
+        assert result == []
+        assert error is not None
+        assert "secret_field" not in error
+        assert "internal_id" not in error
 
     def test_non_dict_items_in_list_are_skipped(self) -> None:
         items: list[Any] = [{"id": 1}, "bad", {"id": 2}, None]

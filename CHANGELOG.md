@@ -22,6 +22,15 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
 
 ### Security
 
+- **Validation errors no longer expose internal backend field names (CWE-209).**
+  When a wrapped list response arrived without an expected key,
+  `validate_list_response` previously returned `list(data.keys())` in the
+  client-visible error message, leaking backend field names through MCP JSON
+  error responses. The client-facing message is now generic (`"Backend returned
+  {context} in unexpected format"`), and the backend keys and raw payload values
+  are logged at `DEBUG` instead of `ERROR` so they no longer surface potentially
+  sensitive data in normal operation.
+
 - **Friction state now survives LRU eviction (CWE-799).** A client that had
   accrued high friction could previously reset it to zero by forcing its own
   LRU eviction — registering `max_clients + 1` distinct OAuth `client_id`s and
