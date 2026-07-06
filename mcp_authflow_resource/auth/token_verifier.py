@@ -160,19 +160,34 @@ class IntrospectionTokenVerifier(TokenVerifier):
         data: dict[str, str],
     ) -> None:
         """Apply the configured client auth to ``headers`` and ``data`` in place."""
-        if self._client_auth_method == "client_secret_basic":
-            assert self._client_id is not None
-            assert self._client_secret is not None
-            creds = base64.b64encode(f"{self._client_id}:{self._client_secret}".encode()).decode()
+        method = self._client_auth_method
+        if method == "none":
+            return
+
+        # ``__init__`` guarantees the required credentials are present for every
+        # authenticating method. Re-check here with real runtime guards rather
+        # than ``assert`` (which ``python -O`` strips) so a missing credential
+        # fails loudly instead of interpolating ``None`` into the Authorization
+        # header. The locals also narrow ``str | None`` to ``str`` for the type
+        # checker.
+        client_secret = self._client_secret
+        if client_secret is None:
+            raise RuntimeError(f"client_auth_method={method!r} requires client_secret")
+
+        if method == "bearer":
+            headers["Authorization"] = f"Bearer {client_secret}"
+            return
+
+        client_id = self._client_id
+        if client_id is None:
+            raise RuntimeError(f"client_auth_method={method!r} requires client_id")
+
+        if method == "client_secret_basic":
+            creds = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
             headers["Authorization"] = f"Basic {creds}"
-        elif self._client_auth_method == "client_secret_post":
-            assert self._client_id is not None
-            assert self._client_secret is not None
-            data["client_id"] = self._client_id
-            data["client_secret"] = self._client_secret
-        elif self._client_auth_method == "bearer":
-            assert self._client_secret is not None
-            headers["Authorization"] = f"Bearer {self._client_secret}"
+        elif method == "client_secret_post":
+            data["client_id"] = client_id
+            data["client_secret"] = client_secret
 
     async def verify_token(self, token: str) -> AccessToken | None:
         """Verify token via introspection endpoint."""
