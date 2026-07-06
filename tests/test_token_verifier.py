@@ -687,6 +687,48 @@ class TestClientAuth:
                 client_auth_method="bearer",
             )
 
+    # --- runtime credential guards (not assert-based) --------------------
+
+    def test_missing_secret_at_call_time_raises_not_none_header(self) -> None:
+        """A missing credential must fail loudly, never interpolate ``None``.
+
+        The construction-time guards previously mirrored ``assert`` statements
+        that ``python -O`` strips. This verifies the enforcement lives in a real
+        runtime check by simulating a verifier whose credentials went missing
+        after construction: it must raise rather than emit ``Basic None:None``.
+        """
+        verifier = IntrospectionTokenVerifier(
+            introspection_endpoint=INTROSPECTION_URL,
+            server_url=SERVER_URL,
+            client_id="my-client",
+            client_secret="s3cret",
+            client_auth_method="client_secret_basic",
+        )
+        verifier._client_secret = None
+
+        headers: dict[str, str] = {}
+        data: dict[str, str] = {}
+        with pytest.raises(RuntimeError, match="requires client_secret"):
+            verifier._apply_client_auth(headers, data)
+        assert "Authorization" not in headers
+
+    def test_missing_client_id_at_call_time_raises(self) -> None:
+        """client_secret_post with a missing client_id fails loudly, no partial body."""
+        verifier = IntrospectionTokenVerifier(
+            introspection_endpoint=INTROSPECTION_URL,
+            server_url=SERVER_URL,
+            client_id="my-client",
+            client_secret="s3cret",
+            client_auth_method="client_secret_post",
+        )
+        verifier._client_id = None
+
+        headers: dict[str, str] = {}
+        data: dict[str, str] = {}
+        with pytest.raises(RuntimeError, match="requires client_id"):
+            verifier._apply_client_auth(headers, data)
+        assert data == {}
+
 
 # ---------------------------------------------------------------------------
 # Introspection caching tests

@@ -22,6 +22,16 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
 
 ### Security
 
+- **Introspection client-auth credentials are guarded at runtime, not by
+  `assert` (CWE-617).** `IntrospectionTokenVerifier._apply_client_auth`
+  previously used `assert` statements to confirm `client_id` / `client_secret`
+  were present before building the Basic/Post/Bearer credentials. Because
+  `python -O` strips `assert`, the guards could be silently removed, letting the
+  code interpolate `None` into a syntactically valid but semantically wrong
+  `Authorization` header. The construction-time `ValueError` guards already
+  guarantee the invariant, and `_apply_client_auth` now enforces it with real
+  `RuntimeError` checks so a missing credential fails loudly regardless of `-O`.
+
 - **Validation errors no longer expose internal backend field names (CWE-209).**
   When a wrapped list response arrived without an expected key,
   `validate_list_response` previously returned `list(data.keys())` in the
