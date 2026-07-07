@@ -98,17 +98,22 @@ class FrictionRegistry:
             controller.configure_group(group_name, gc)
         return controller
 
-    async def _get_or_create(self, client_id: str) -> FrictionController:
-        """Get or lazily create a controller, evicting LRU if needed."""
+    async def _get_or_create(self, client_id: str) -> tuple[FrictionController, asyncio.Lock]:
+        """Get or lazily create a controller, evicting LRU if needed.
+
+        Returns the ``(controller, lock)`` pair atomically so callers never
+        have to re-look up ``self._locks[client_id]`` outside a lock — a
+        concurrent LRU eviction could delete that entry between the lookups.
+        """
         if client_id in self._controllers:
             self._access_order.move_to_end(client_id)
-            return self._controllers[client_id]
+            return self._controllers[client_id], self._locks[client_id]
 
         async with self._global_lock:
             # Double-check after acquiring lock
             if client_id in self._controllers:
                 self._access_order.move_to_end(client_id)
-                return self._controllers[client_id]
+                return self._controllers[client_id], self._locks[client_id]
 
             now = time.monotonic()
 
@@ -122,11 +127,12 @@ class FrictionRegistry:
 
             controller = self._create_controller(client_id)
             self._restore_penalty(client_id, controller, now)
+            lock = asyncio.Lock()
             self._controllers[client_id] = controller
-            self._locks[client_id] = asyncio.Lock()
+            self._locks[client_id] = lock
             self._access_order[client_id] = None
             friction_logging.log_client_created(client_id, len(self._controllers))
-            return controller
+            return controller, lock
 
     def _capture_penalty(
         self,
@@ -191,8 +197,7 @@ class FrictionRegistry:
         Returns:
             FrictionResult with the check outcome (before recording).
         """
-        controller = await self._get_or_create(client_id)
-        lock = self._locks[client_id]
+        controller, lock = await self._get_or_create(client_id)
 
         async with lock:
             result = controller.check(tool_name)
@@ -211,8 +216,7 @@ class FrictionRegistry:
 
     async def record_unconfigured(self, client_id: str, tool_name: str) -> None:
         """Record a call to an unconfigured tool (denominator tracking)."""
-        controller = await self._get_or_create(client_id)
-        lock = self._locks[client_id]
+        controller, lock = await self._get_or_create(client_id)
 
         async with lock:
             controller.record_call_unconfigured(tool_name)

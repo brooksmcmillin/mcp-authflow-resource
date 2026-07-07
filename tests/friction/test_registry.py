@@ -197,6 +197,47 @@ class TestConcurrency:
         assert len(results) == 10
         assert registry.client_count == 10
 
+    @pytest.mark.asyncio
+    async def test_get_or_create_returns_matching_lock(self, registry: FrictionRegistry) -> None:
+        """The lock is returned atomically with the controller.
+
+        Callers must never re-look up ``self._locks[client_id]`` after the
+        controller lookup: a concurrent LRU eviction could delete that entry
+        in between, raising a KeyError. The returned lock must be the exact
+        lock the registry tracks for the client.
+        """
+        controller, lock = await registry._get_or_create("client-a")
+        assert controller is registry._controllers["client-a"]
+        assert lock is registry._locks["client-a"]
+
+        # Existing-client path returns the same pair.
+        controller2, lock2 = await registry._get_or_create("client-a")
+        assert controller2 is controller
+        assert lock2 is lock
+
+    @pytest.mark.asyncio
+    async def test_get_or_create_lock_survives_concurrent_eviction(
+        self, small_registry: FrictionRegistry
+    ) -> None:
+        """A returned lock stays valid even if the client is later evicted.
+
+        Reproduces the TOCTOU the issue describes: hold the (controller, lock)
+        pair for one client, then force its eviction from another coroutine.
+        The held lock must still be usable — it is not looked up again.
+        """
+        _, lock_a = await small_registry._get_or_create("client-a")
+        await small_registry.check_and_record("client-b", "delete_task")
+
+        # Evict client-a by registering a third client (max_clients=2).
+        await small_registry.check_and_record("client-c", "delete_task")
+        assert small_registry.get_client_status("client-a") is None
+        assert "client-a" not in small_registry._locks
+
+        # The previously-returned lock is still a usable asyncio.Lock, so any
+        # in-flight caller holding it does not hit a KeyError.
+        async with lock_a:
+            assert lock_a.locked()
+
 
 class TestUnconfiguredRecording:
     @pytest.mark.asyncio
