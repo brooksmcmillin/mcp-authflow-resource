@@ -7,6 +7,7 @@ that one client's usage patterns don't affect another's friction levels.
 import asyncio
 import time
 from collections import OrderedDict
+from dataclasses import replace
 
 from . import logging as friction_logging
 from .controller import FrictionController
@@ -77,20 +78,12 @@ class FrictionRegistry:
 
     def _create_controller(self, client_id: str) -> FrictionController:
         """Create a new controller for a client with the shared config."""
+        # Shallow-clone every scalar field from the shared default config via
+        # ``dataclasses.replace`` so new ControllerConfig fields are carried
+        # automatically. ``tool_configs``/``tool_groups`` are intentionally
+        # cleared here and applied per-client below via ``configure_*``.
         controller = FrictionController(
-            ControllerConfig(
-                window_size=self._default_config.window_size,
-                ema_alpha=self._default_config.ema_alpha,
-                adjustment_rate=self._default_config.adjustment_rate,
-                asymmetric_decay=self._default_config.asymmetric_decay,
-                dead_zone=self._default_config.dead_zone,
-                warmup_calls=self._default_config.warmup_calls,
-                time_decay_rate=self._default_config.time_decay_rate,
-                default_budget=self._default_config.default_budget,
-                saturation_threshold=self._default_config.saturation_threshold,
-                saturation_window=self._default_config.saturation_window,
-                saturation_relief_rate=self._default_config.saturation_relief_rate,
-            )
+            replace(self._default_config, tool_configs={}, tool_groups={})
         )
         for tool_name, tc in self._tool_configs.items():
             controller.configure_tool(tool_name, tc)

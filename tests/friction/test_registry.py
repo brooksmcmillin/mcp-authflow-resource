@@ -1,6 +1,7 @@
 """Tests for the per-client friction registry."""
 
 import asyncio
+import dataclasses
 
 import pytest
 
@@ -247,3 +248,55 @@ class TestUnconfiguredRecording:
         assert status is not None
         # delete_task is configured but wasn't called — should show 0 rate
         assert status["delete_task"]["raw_rate"] == 0.0
+
+
+class TestControllerConfigCloning:
+    """The per-client controller config must mirror the shared default.
+
+    Guards against silent drift: if a new ControllerConfig scalar field is
+    added, it should reach the per-client controller automatically rather than
+    falling back to its dataclass default.
+    """
+
+    def test_all_scalar_fields_cloned(self) -> None:
+        # Non-default value for every scalar field so a dropped field surfaces.
+        default_config = ControllerConfig(
+            window_size=42,
+            ema_alpha=0.33,
+            adjustment_rate=0.11,
+            asymmetric_decay=3.5,
+            dead_zone=0.02,
+            warmup_calls=7,
+            time_decay_rate=0.005,
+            default_budget=123.0,
+            saturation_threshold=0.77,
+            saturation_window=9,
+            saturation_relief_rate=0.05,
+        )
+        registry = FrictionRegistry(default_config=default_config)
+
+        controller = registry._create_controller("client-a")
+
+        container_fields = {"tool_configs", "tool_groups"}
+        for f in dataclasses.fields(ControllerConfig):
+            if f.name in container_fields:
+                continue
+            assert getattr(controller.config, f.name) == getattr(default_config, f.name), (
+                f"ControllerConfig.{f.name} was not cloned onto the per-client controller"
+            )
+
+    def test_container_fields_start_empty_and_isolated(self) -> None:
+        registry = FrictionRegistry(
+            default_config=ControllerConfig(),
+            tool_configs={"delete_task": ToolFrictionConfig(target_rate=0.05)},
+        )
+
+        controller_a = registry._create_controller("client-a")
+        controller_b = registry._create_controller("client-b")
+
+        # tool_configs/tool_groups are applied per-client via configure_*,
+        # so each controller owns an independent copy seeded from the registry.
+        assert "delete_task" in controller_a.config.tool_configs
+        assert controller_a.config.tool_configs is not controller_b.config.tool_configs
+        assert controller_a.config.tool_groups is not controller_b.config.tool_groups
+        assert controller_a.config.tool_configs is not registry._default_config.tool_configs
