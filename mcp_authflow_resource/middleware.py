@@ -32,10 +32,12 @@ class NormalizePathMiddleware:
         await self.app(scope, receive, send)
 
 
-def create_logging_middleware(
-    app: ASGIApp, mask_auth: bool = True
-) -> Callable[[Scope, Receive, Send], Awaitable[None]]:
-    """Create ASGI middleware to log detailed request information for debugging.
+# Maximum number of request-body bytes to include in a log preview.
+_BODY_PREVIEW_LIMIT = 1000
+
+
+class VerboseLoggingMiddleware:
+    """ASGI middleware that logs detailed request/response info for debugging.
 
     .. warning:: **CWE-532 — Insertion of Sensitive Information into Log File**
 
@@ -47,124 +49,144 @@ def create_logging_middleware(
 
         **This middleware must NEVER be left active in production.**
 
-        To prevent accidental production activation this function raises
+        To prevent accidental production activation, constructing it raises
         ``RuntimeError`` unless the environment variable
         ``MCP_ENABLE_VERBOSE_LOGGING=1`` is explicitly set.  Use only in
         controlled debug environments; remove the variable before deploying.
 
-    Uses raw ASGI interface to avoid interfering with request body or streaming.
+    Uses the raw ASGI interface to avoid interfering with request body or
+    streaming.
 
     Args:
-        app: The ASGI application to wrap
+        app: The ASGI application to wrap.
         mask_auth: Whether to mask credential-bearing header values, i.e. those
             in ``_SENSITIVE_HEADERS`` such as Authorization, Cookie, X-API-Key,
-            and Proxy-Authorization (default: True)
-
-    Returns:
-        ASGI middleware function
+            and Proxy-Authorization (default: True).
 
     Raises:
         RuntimeError: If ``MCP_ENABLE_VERBOSE_LOGGING`` is not set to ``"1"``,
             to guard against accidental production activation.
     """
-    if os.environ.get("MCP_ENABLE_VERBOSE_LOGGING") != "1":
-        raise RuntimeError(
-            "create_logging_middleware() refused: MCP_ENABLE_VERBOSE_LOGGING is not set to '1'. "
-            "This middleware logs full request bodies and headers (CWE-532). "
-            "Set MCP_ENABLE_VERBOSE_LOGGING=1 only in controlled debug environments, "
-            "never in production."
-        )
 
-    async def middleware(scope: Scope, receive: Receive, send: Send) -> None:
+    def __init__(self, app: ASGIApp, mask_auth: bool = True) -> None:
+        if os.environ.get("MCP_ENABLE_VERBOSE_LOGGING") != "1":
+            raise RuntimeError(
+                "VerboseLoggingMiddleware refused: MCP_ENABLE_VERBOSE_LOGGING is not set to '1'. "
+                "This middleware logs full request bodies and headers (CWE-532). "
+                "Set MCP_ENABLE_VERBOSE_LOGGING=1 only in controlled debug environments, "
+                "never in production."
+            )
+        self.app = app
+        self.mask_auth = mask_auth
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
-            await app(scope, receive, send)
+            await self.app(scope, receive, send)
             return
 
-        # Extract request info from scope
         method = scope.get("method", "UNKNOWN")
         path = scope.get("path", "/")
+
+        self._log_request(scope, method, path)
+
+        send_wrapper = self._make_send_wrapper(send, method, path)
+        if method == "POST":
+            await self.app(scope, self._make_receive_wrapper(receive), send_wrapper)
+        else:
+            await self.app(scope, receive, send_wrapper)
+
+    def _log_request(self, scope: Scope, method: str, path: str) -> None:
+        """Log the incoming request line, headers, and key MCP headers."""
         query_string = scope.get("query_string", b"").decode("utf-8", errors="replace")
         headers = {k.decode(): v.decode() for k, v in scope.get("headers", [])}
 
-        # Log request details
         logger.info("=" * 60)
         logger.info("=== Incoming Request: %s %s ===", method, path)
         if query_string:
             logger.info("Query string: %s", query_string)
         logger.info("Client: %s", scope.get("client"))
 
-        # Log all headers
         logger.info("Headers:")
         for name, value in headers.items():
-            # Mask credential-bearing header values for security
-            if mask_auth and name.lower() in _SENSITIVE_HEADERS:
+            # Mask credential-bearing header values for security.
+            if self.mask_auth and name.lower() in _SENSITIVE_HEADERS:
                 logger.info("  %s: ***", name)
             else:
                 logger.info("  %s: %s", name, value)
 
-        # Log specific headers that MCP cares about
-        content_type = headers.get("content-type", "NOT SET")
-        origin = headers.get("origin", "NOT SET")
-        host = headers.get("host", "NOT SET")
-        mcp_session = headers.get("mcp-session-id", "NOT SET")
-        mcp_protocol = headers.get("mcp-protocol-version", "NOT SET")
-
         logger.info("Key MCP headers:")
-        logger.info("  Content-Type: %s", content_type)
-        logger.info("  Origin: %s", origin)
-        logger.info("  Host: %s", host)
-        logger.info("  Mcp-Session-Id: %s", mcp_session)
-        logger.info("  Mcp-Protocol-Version: %s", mcp_protocol)
+        logger.info("  Content-Type: %s", headers.get("content-type", "NOT SET"))
+        logger.info("  Origin: %s", headers.get("origin", "NOT SET"))
+        logger.info("  Host: %s", headers.get("host", "NOT SET"))
+        logger.info("  Mcp-Session-Id: %s", headers.get("mcp-session-id", "NOT SET"))
+        logger.info("  Mcp-Protocol-Version: %s", headers.get("mcp-protocol-version", "NOT SET"))
+        logger.info("=" * 60)
 
-        # Track response status
-        response_status = [None]
-        response_headers: list[dict[str, str]] = [{}]
+    def _make_send_wrapper(self, send: Send, method: str, path: str) -> Send:
+        """Wrap ``send`` to log the response status and 400-error details."""
+        response_status: int | None = None
 
         async def send_wrapper(message: Message) -> None:
+            nonlocal response_status
             if message["type"] == "http.response.start":
-                response_status[0] = message.get("status")
-                response_headers[0] = {
-                    k.decode(): v.decode() for k, v in message.get("headers", [])
-                }
+                response_status = message.get("status")
+                logger.info("=== Response: %s for %s %s ===", response_status, method, path)
 
-                # Log response status
-                logger.info("=== Response: %s for %s %s ===", response_status[0], method, path)
-
-                # If it's a 400 error, log more details
-                if response_status[0] == 400:
+                if response_status == 400:
+                    response_headers = {
+                        k.decode(): v.decode() for k, v in message.get("headers", [])
+                    }
                     logger.error("!!! 400 Bad Request returned !!!")
-                    logger.error("Response headers: %s", response_headers[0])
+                    logger.error("Response headers: %s", response_headers)
 
             elif message["type"] == "http.response.body":
                 body = message.get("body", b"")
-                if body and response_status[0] == 400:
-                    # Log the response body for 400 errors
+                if body and response_status == 400:
                     body_text = body.decode("utf-8", errors="replace")
                     logger.error("400 Response body: %s", body_text)
 
             await send(message)
 
-        # Log body for POST requests by wrapping receive
-        body_logged = [False]
+        return send_wrapper
+
+    def _make_receive_wrapper(self, receive: Receive) -> Receive:
+        """Wrap ``receive`` to log a preview of the first request body chunk."""
+        body_logged = False
 
         async def receive_with_logging() -> Message:
+            nonlocal body_logged
             message = await receive()
-            if message["type"] == "http.request" and not body_logged[0]:
-                body_logged[0] = True
+            if message["type"] == "http.request" and not body_logged:
+                body_logged = True
                 body = message.get("body", b"")
                 more_body = message.get("more_body", False)
                 if body:
-                    body_preview = body[:1000].decode("utf-8", errors="replace")
-                    if len(body) > 1000 or more_body:
+                    body_preview = body[:_BODY_PREVIEW_LIMIT].decode("utf-8", errors="replace")
+                    if len(body) > _BODY_PREVIEW_LIMIT or more_body:
                         body_preview += "... (truncated/more coming)"
                     logger.info("Request body preview (%s bytes): %s", len(body), body_preview)
             return message
 
-        logger.info("=" * 60)
+        return receive_with_logging
 
-        if method == "POST":
-            await app(scope, receive_with_logging, send_wrapper)
-        else:
-            await app(scope, receive, send_wrapper)
 
-    return middleware
+def create_logging_middleware(
+    app: ASGIApp, mask_auth: bool = True
+) -> Callable[[Scope, Receive, Send], Awaitable[None]]:
+    """Create ASGI middleware to log detailed request information for debugging.
+
+    Thin factory around :class:`VerboseLoggingMiddleware`; see that class for
+    the full behaviour and the **CWE-532** production-safety warning.
+
+    Args:
+        app: The ASGI application to wrap.
+        mask_auth: Whether to mask credential-bearing header values (default: True).
+
+    Returns:
+        A callable ASGI middleware instance.
+
+    Raises:
+        RuntimeError: If ``MCP_ENABLE_VERBOSE_LOGGING`` is not set to ``"1"``,
+            to guard against accidental production activation.
+    """
+    return VerboseLoggingMiddleware(app, mask_auth=mask_auth)

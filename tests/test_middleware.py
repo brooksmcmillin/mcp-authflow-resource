@@ -9,7 +9,11 @@ from unittest.mock import AsyncMock
 import pytest
 from starlette.types import Receive, Scope, Send
 
-from mcp_authflow_resource.middleware import NormalizePathMiddleware, create_logging_middleware
+from mcp_authflow_resource.middleware import (
+    NormalizePathMiddleware,
+    VerboseLoggingMiddleware,
+    create_logging_middleware,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -421,3 +425,52 @@ class TestCreateLoggingMiddleware:
 
         with pytest.raises(RuntimeError, match="MCP_ENABLE_VERBOSE_LOGGING"):
             create_logging_middleware(AsyncMock())
+
+    def test_factory_returns_class_instance(self) -> None:
+        """create_logging_middleware is a thin factory around VerboseLoggingMiddleware."""
+        inner = AsyncMock()
+        mw = create_logging_middleware(inner, mask_auth=False)
+
+        assert isinstance(mw, VerboseLoggingMiddleware)
+        assert mw.app is inner
+        assert mw.mask_auth is False
+
+    def test_class_env_guard_raises_without_opt_in(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Constructing VerboseLoggingMiddleware directly enforces the env guard."""
+        monkeypatch.delenv("MCP_ENABLE_VERBOSE_LOGGING", raising=False)
+
+        with pytest.raises(RuntimeError, match="MCP_ENABLE_VERBOSE_LOGGING"):
+            VerboseLoggingMiddleware(AsyncMock())
+
+    async def test_response_state_isolated_between_requests(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A 400 on one request must not leak into a later 200 request's logging.
+
+        The old implementation stored response status in a factory-level mutable
+        cell; with a shared instance that would let one request's status bleed
+        into the next. Each call now uses its own per-request send wrapper.
+        """
+
+        async def make_400(scope: Scope, receive: Receive, send: Send) -> None:
+            await send({"type": "http.response.start", "status": 400, "headers": []})
+            await send({"type": "http.response.body", "body": b"first-body"})
+
+        async def make_200(scope: Scope, receive: Receive, send: Send) -> None:
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+            await send({"type": "http.response.body", "body": b"second-body"})
+
+        mw = create_logging_middleware(make_400)
+        log_name = "mcp_authflow_resource.middleware"
+
+        with caplog.at_level(logging.DEBUG, logger=log_name):
+            await mw(_make_http_scope("/mcp"), AsyncMock(), AsyncMock())
+            # Reuse the same instance with a different downstream app for the 2nd request.
+            mw.app = make_200  # type: ignore[misc]
+            caplog.clear()
+            await mw(_make_http_scope("/mcp"), AsyncMock(), AsyncMock())
+
+        # The second (200) request must not emit any 400-error logging.
+        error_messages = " ".join(r.message for r in caplog.records if r.levelno >= logging.ERROR)
+        assert error_messages == ""
+        assert "second-body" not in error_messages
