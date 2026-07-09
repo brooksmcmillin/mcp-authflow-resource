@@ -12,7 +12,19 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
 
 ### Added
 
+- **`VerboseLoggingMiddleware` class.** The debug logging middleware is now a
+  class-based ASGI middleware. `create_logging_middleware()` is retained as a
+  thin factory around it, so existing call sites keep working unchanged.
+
 ### Changed
+
+- **Refactored the verbose logging middleware out of a nested-closure factory.**
+  `create_logging_middleware` previously built a ~CC-20 async closure containing
+  two further nested closures and used mutable single-element lists (`[None]`,
+  `[False]`) as `nonlocal` substitutes. The logic now lives in
+  `VerboseLoggingMiddleware` with `_log_request`, `_make_send_wrapper`, and
+  `_make_receive_wrapper` helpers, and the per-request cells use real `nonlocal`
+  variables. Behaviour is unchanged.
 
 ### Deprecated
 
