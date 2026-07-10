@@ -222,3 +222,77 @@ class TestAggregateGroups:
         # Both should have non-zero friction from aggregate pressure
         assert c._friction_levels["create"] > 0.0
         assert c._friction_levels["update"] > 0.0
+
+
+class TestBudget:
+    def test_check_blocked_when_budget_insufficient(self) -> None:
+        config = ControllerConfig(default_budget=0.0)
+        c = FrictionController(config)
+        c.configure_tool("delete", ToolFrictionConfig(min_cost=0.5))
+        result = c.check("delete")
+        assert result.allowed is False
+        assert "Insufficient budget" in result.message
+
+    def test_insufficient_budget_message_reports_values(self) -> None:
+        config = ControllerConfig(default_budget=0.3)
+        c = FrictionController(config)
+        c.configure_tool("delete", ToolFrictionConfig(min_cost=0.5))
+        result = c.check("delete")
+        assert result.allowed is False
+        # Budget (0.3) < cost (0.5) at friction=0.
+        assert result.message == "Insufficient budget: 0.3 < 0.5"
+
+    def test_budget_message_takes_priority_over_block(self) -> None:
+        config = ControllerConfig(default_budget=0.0)
+        c = FrictionController(config)
+        c.configure_tool(
+            "delete",
+            ToolFrictionConfig(min_cost=0.5, hard_block_threshold=0.95),
+        )
+        c._friction_levels["delete"] = 0.96  # would otherwise be BLOCKED
+        result = c.check("delete")
+        assert result.allowed is False
+        assert result.friction_level == FrictionLevel.BLOCKED
+        assert "Insufficient budget" in result.message
+
+    def test_sufficient_budget_allows_call(self) -> None:
+        config = ControllerConfig(default_budget=10.0)
+        c = FrictionController(config)
+        c.configure_tool("delete", ToolFrictionConfig(min_cost=0.5))
+        result = c.check("delete")
+        assert result.allowed is True
+        assert "Insufficient budget" not in result.message
+
+
+class TestResetBudget:
+    def test_reset_budget_to_explicit_value(self) -> None:
+        config = ControllerConfig(default_budget=5.0)
+        c = FrictionController(config)
+        c.configure_tool("delete", ToolFrictionConfig(min_cost=0.5))
+        c.record_call("delete", timestamp=0.0)
+        assert c.budget_remaining < 5.0
+
+        c.reset_budget(100.0)
+        assert c.budget_remaining == 100.0
+
+    def test_reset_budget_defaults_to_config_budget(self) -> None:
+        config = ControllerConfig(default_budget=5.0)
+        c = FrictionController(config)
+        c.configure_tool("delete", ToolFrictionConfig(min_cost=0.5))
+        c.record_call("delete", timestamp=0.0)
+        assert c.budget_remaining < 5.0
+
+        c.reset_budget()
+        assert c.budget_remaining == 5.0
+
+    def test_budget_remaining_decreases_with_calls(self) -> None:
+        config = ControllerConfig(
+            default_budget=10.0,
+            warmup_calls=0,
+            time_decay_rate=0.0,
+        )
+        c = FrictionController(config)
+        c.configure_tool("delete", ToolFrictionConfig(min_cost=1.0))
+        before = c.budget_remaining
+        c.record_call("delete", timestamp=0.0)
+        assert c.budget_remaining < before
