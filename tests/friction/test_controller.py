@@ -154,6 +154,36 @@ class TestTimeDecay:
         # Friction should have decayed substantially
         assert c._friction_levels["delete"] < friction_before * 0.5
 
+    def test_identical_timestamps_skip_decay(self) -> None:
+        """Two calls sharing a timestamp (dt == 0) must not decay friction."""
+        config = ControllerConfig(
+            warmup_calls=100,  # suppress adjustment so only decay could move friction
+            time_decay_rate=0.01,
+        )
+        c = FrictionController(config)
+        c.configure_tool("delete", ToolFrictionConfig(target_rate=0.05))
+        c._friction_levels["delete"] = 0.5
+
+        c.record_call("delete", timestamp=10.0)
+        c.record_call("delete", timestamp=10.0)
+
+        assert c._friction_levels["delete"] == 0.5
+
+    def test_backwards_timestamp_does_not_inflate_friction(self) -> None:
+        """A negative dt must not multiply friction by exp(+rate*|dt|)."""
+        config = ControllerConfig(
+            warmup_calls=100,
+            time_decay_rate=0.01,
+        )
+        c = FrictionController(config)
+        c.configure_tool("delete", ToolFrictionConfig(target_rate=0.05))
+        c._friction_levels["delete"] = 0.5
+
+        c.record_call("delete", timestamp=100.0)
+        c.record_call("delete", timestamp=50.0)
+
+        assert c._friction_levels["delete"] == 0.5
+
     def test_ema_also_decays(self) -> None:
         config = ControllerConfig(
             warmup_calls=0,
@@ -222,6 +252,30 @@ class TestAggregateGroups:
         # Both should have non-zero friction from aggregate pressure
         assert c._friction_levels["create"] > 0.0
         assert c._friction_levels["update"] > 0.0
+
+    def test_group_skips_unconfigured_tool(self) -> None:
+        """A group tool never passed to configure_tool is skipped, not a KeyError."""
+        config = ControllerConfig(
+            warmup_calls=0,
+            time_decay_rate=0.0,
+        )
+        c = FrictionController(config)
+        c.configure_tool("create", ToolFrictionConfig(target_rate=0.10))
+        c.configure_group(
+            "mutations",
+            ToolGroupConfig(
+                tools=["create", "ghost"],
+                aggregate_target=0.05,
+            ),
+        )
+
+        # Overuse the configured tool so aggregate pressure kicks in
+        for i in range(40):
+            c.record_call("create", timestamp=float(i))
+
+        assert c._friction_levels["create"] > 0.0
+        # The unconfigured group member accrues no friction state
+        assert "ghost" not in c._friction_levels
 
 
 class TestBudget:
