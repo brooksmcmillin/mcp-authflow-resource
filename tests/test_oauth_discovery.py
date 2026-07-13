@@ -193,6 +193,21 @@ class TestCorsSupport:
         resp = client.get("/.well-known/oauth-authorization-server/mcp")
         assert "Access-Control-Allow-Origin" not in resp.headers
 
+    def test_options_not_allowed_without_cors(self) -> None:
+        client = _make_app_with_discovery()
+        for path in (
+            "/.well-known/oauth-authorization-server",
+            "/.well-known/openid-configuration",
+            "/.well-known/oauth-authorization-server/mcp",
+        ):
+            assert client.options(path).status_code == 405
+
+    def test_cors_options_on_openid_config(self) -> None:
+        client = _make_app_with_discovery(cors_header_builder=self._mock_cors_builder)
+        resp = client.options("/.well-known/openid-configuration")
+        assert resp.status_code == 200
+        assert resp.headers["Access-Control-Allow-Origin"] == "https://app.example.com"
+
 
 class TestCustomScopes:
     """Custom scope configuration."""

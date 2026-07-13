@@ -18,7 +18,8 @@ Usage:
     )
 """
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
+from functools import partial
 from typing import Any
 
 from mcp.server.fastmcp.server import FastMCP
@@ -75,6 +76,25 @@ def _build_protected_resource_metadata(
     if resource_documentation:
         metadata["resource_documentation"] = resource_documentation
     return metadata
+
+
+def _make_metadata_handler(
+    metadata_fn: Callable[[], dict[str, Any]],
+    cors_header_builder: CorsHeaderBuilder | None,
+) -> Callable[[Request], Awaitable[JSONResponse]]:
+    """Create a route handler that serves ``metadata_fn()`` as JSON.
+
+    When ``cors_header_builder`` is provided, the handler adds CORS headers to
+    every response and answers OPTIONS preflight requests with an empty body.
+    """
+
+    async def handler(request: Request) -> JSONResponse:
+        headers = cors_header_builder(request) if cors_header_builder else None
+        if request.method == "OPTIONS":
+            return JSONResponse({}, headers=headers)
+        return JSONResponse(metadata_fn(), headers=headers)
+
+    return handler
 
 
 def register_oauth_discovery_endpoints(
@@ -142,55 +162,19 @@ def register_oauth_discovery_endpoints(
             )
         )
 
-    # --- RFC 8414: Authorization Server Metadata ---
+    # --- RFC 8414: Authorization Server Metadata (+ OIDC alias) ---
 
-    if cors_header_builder:
-        _cors = cors_header_builder
+    auth_metadata = partial(_build_oauth_metadata, auth_url, resolved_scopes)
+    methods = ["GET", "OPTIONS"] if cors_header_builder else ["GET"]
 
-        @app.custom_route("/.well-known/oauth-authorization-server", methods=["GET", "OPTIONS"])
-        async def oauth_authorization_server(request: Request) -> JSONResponse:
-            """OAuth 2.0 Authorization Server Metadata (RFC 8414)."""
-            if request.method == "OPTIONS":
-                return JSONResponse({}, headers=_cors(request))
-            return JSONResponse(
-                _build_oauth_metadata(auth_url, resolved_scopes),
-                headers=_cors(request),
-            )
-
-        @app.custom_route("/.well-known/openid-configuration", methods=["GET", "OPTIONS"])
-        async def openid_configuration(request: Request) -> JSONResponse:
-            """OpenID Connect Discovery (aliases OAuth Authorization Server Metadata)."""
-            if request.method == "OPTIONS":
-                return JSONResponse({}, headers=_cors(request))
-            return JSONResponse(
-                _build_oauth_metadata(auth_url, resolved_scopes),
-                headers=_cors(request),
-            )
-
-        @app.custom_route("/.well-known/oauth-authorization-server/mcp", methods=["GET", "OPTIONS"])
-        async def oauth_authorization_server_mcp(request: Request) -> JSONResponse:
-            """Resource-specific OAuth 2.0 Authorization Server Metadata for /mcp."""
-            if request.method == "OPTIONS":
-                return JSONResponse({}, headers=_cors(request))
-            return JSONResponse(
-                _build_oauth_metadata(auth_url, resolved_scopes, resource=resource_url),
-                headers=_cors(request),
-            )
-    else:
-
-        @app.custom_route("/.well-known/oauth-authorization-server", methods=["GET"])
-        async def oauth_authorization_server(request: Request) -> JSONResponse:  # noqa: ARG001
-            """OAuth 2.0 Authorization Server Metadata (RFC 8414)."""
-            return JSONResponse(_build_oauth_metadata(auth_url, resolved_scopes))
-
-        @app.custom_route("/.well-known/openid-configuration", methods=["GET"])
-        async def openid_configuration(request: Request) -> JSONResponse:  # noqa: ARG001
-            """OpenID Connect Discovery (aliases OAuth Authorization Server Metadata)."""
-            return JSONResponse(_build_oauth_metadata(auth_url, resolved_scopes))
-
-        @app.custom_route("/.well-known/oauth-authorization-server/mcp", methods=["GET"])
-        async def oauth_authorization_server_mcp(request: Request) -> JSONResponse:  # noqa: ARG001
-            """Resource-specific OAuth 2.0 Authorization Server Metadata for /mcp."""
-            return JSONResponse(
-                _build_oauth_metadata(auth_url, resolved_scopes, resource=resource_url)
-            )
+    for path, metadata_fn in (
+        ("/.well-known/oauth-authorization-server", auth_metadata),
+        ("/.well-known/openid-configuration", auth_metadata),
+        (
+            "/.well-known/oauth-authorization-server/mcp",
+            partial(_build_oauth_metadata, auth_url, resolved_scopes, resource=resource_url),
+        ),
+    ):
+        app.custom_route(path, methods=methods)(
+            _make_metadata_handler(metadata_fn, cors_header_builder)
+        )
