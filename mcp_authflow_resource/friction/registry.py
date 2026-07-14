@@ -205,6 +205,7 @@ class FrictionRegistry:
                 friction_logging.log_justification_required(client_id, tool_name, result)
 
             controller.record_call(tool_name)
+            self._log_saturation_events(client_id, controller)
             return result
 
     async def record_unconfigured(self, client_id: str, tool_name: str) -> None:
@@ -213,6 +214,13 @@ class FrictionRegistry:
 
         async with lock:
             controller.record_call_unconfigured(tool_name)
+            self._log_saturation_events(client_id, controller)
+
+    @staticmethod
+    def _log_saturation_events(client_id: str, controller: FrictionController) -> None:
+        """Emit a structured log record for each newly saturated tool."""
+        for tool_name, effective_target, original_target in controller.drain_saturation_events():
+            friction_logging.log_saturation(client_id, tool_name, effective_target, original_target)
 
     def get_client_status(self, client_id: str) -> dict[str, dict] | None:
         """Get friction status for a specific client (for diagnostics)."""

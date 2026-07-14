@@ -226,6 +226,41 @@ class TestSaturationDetection:
         assert c._saturation_detected.get("delete", False) is True
         assert c._effective_targets["delete"] > 0.01
 
+    def test_drain_saturation_events_reports_once(self) -> None:
+        config = ControllerConfig(
+            warmup_calls=0,
+            time_decay_rate=0.0,
+            saturation_window=5,
+            saturation_threshold=0.9,
+            saturation_relief_rate=0.01,
+        )
+        c = FrictionController(config)
+        c.configure_tool("delete", ToolFrictionConfig(target_rate=0.01))
+        c._friction_levels["delete"] = 0.95
+
+        for i in range(20):
+            c.record_call("delete", timestamp=float(i))
+
+        events = c.drain_saturation_events()
+        assert len(events) == 1
+        tool_name, effective_target, original_target = events[0]
+        assert tool_name == "delete"
+        assert original_target == 0.01
+        assert effective_target > 0.01
+
+        # Draining is one-shot: no duplicate events for the same saturation.
+        assert c.drain_saturation_events() == []
+
+    def test_no_saturation_event_without_detection(self) -> None:
+        config = ControllerConfig(warmup_calls=0, time_decay_rate=0.0)
+        c = FrictionController(config)
+        c.configure_tool("read", ToolFrictionConfig(target_rate=0.5))
+
+        for i in range(10):
+            c.record_call("read", timestamp=float(i))
+
+        assert c.drain_saturation_events() == []
+
 
 class TestAggregateGroups:
     def test_aggregate_pressure_distributes(self) -> None:

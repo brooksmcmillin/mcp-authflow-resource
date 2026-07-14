@@ -49,6 +49,9 @@ class FrictionController:
         self._saturation_counters: dict[str, int] = {}
         self._effective_targets: dict[str, float] = {}
         self._saturation_detected: dict[str, bool] = {}
+        # Newly detected saturation events, drained by the registry for logging.
+        # Each entry is (tool_name, effective_target, original_target).
+        self._pending_saturation_events: list[tuple[str, float, float]] = []
 
         # Aggregate group state
         self._group_ema_rates: dict[str, float] = {}
@@ -240,12 +243,30 @@ class FrictionController:
 
             counter = self._saturation_counters.get(name, 0)
 
-            if counter >= window and not self._saturation_detected.get(name, False):
+            newly_saturated = counter >= window and not self._saturation_detected.get(name, False)
+            if newly_saturated:
                 self._saturation_detected[name] = True
 
             if self._saturation_detected.get(name, False) and counter >= window:
                 current_target = self._effective_targets.get(name, tc.target_rate)
                 self._effective_targets[name] = min(current_target + step, 1.0)
+
+            if newly_saturated:
+                self._pending_saturation_events.append(
+                    (name, self._effective_targets.get(name, tc.target_rate), tc.target_rate)
+                )
+
+    def drain_saturation_events(self) -> list[tuple[str, float, float]]:
+        """Return and clear saturation events detected since the last drain.
+
+        Each event is ``(tool_name, effective_target, original_target)``.
+        The registry drains these after recording a call so it can emit a
+        structured ``friction_saturation`` log record tagged with the
+        client id (which the controller itself does not know).
+        """
+        events = self._pending_saturation_events
+        self._pending_saturation_events = []
+        return events
 
     def _apply_aggregate_pressure(self) -> None:
         """Apply cross-tool friction from aggregate rate budgets."""
