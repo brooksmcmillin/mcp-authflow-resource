@@ -250,6 +250,46 @@ class TestUnconfiguredRecording:
         assert status["delete_task"]["raw_rate"] == 0.0
 
 
+class TestSaturationLogging:
+    """Newly detected saturation must surface as a structured log event."""
+
+    @pytest.mark.asyncio
+    async def test_saturation_event_logged_with_client_id(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        reg = FrictionRegistry(
+            default_config=ControllerConfig(
+                warmup_calls=0,
+                time_decay_rate=0.0,
+                saturation_window=3,
+                saturation_threshold=0.9,
+                saturation_relief_rate=0.01,
+            ),
+            tool_configs={
+                # Raise the block threshold so calls keep recording (and thus
+                # keep re-detecting) while friction sits above the saturation
+                # threshold — otherwise a blocked call returns before recording.
+                "delete_task": ToolFrictionConfig(target_rate=0.01, hard_block_threshold=1.5),
+            },
+        )
+
+        # Prime the client's controller and force it into a saturated state.
+        await reg.check_and_record("client-a", "delete_task")
+        controller = reg._controllers["client-a"]
+        controller._friction_levels["delete_task"] = 0.92
+
+        logger_name = "mcp_authflow_resource.friction"
+        with caplog.at_level("WARNING", logger=logger_name):
+            for _ in range(20):
+                await reg.check_and_record("client-a", "delete_task")
+
+        saturation_records = [r for r in caplog.records if "friction_saturation" in r.getMessage()]
+        assert len(saturation_records) == 1
+        message = saturation_records[0].getMessage()
+        assert "client-a" in message
+        assert "delete_task" in message
+
+
 class TestControllerConfigCloning:
     """The per-client controller config must mirror the shared default.
 

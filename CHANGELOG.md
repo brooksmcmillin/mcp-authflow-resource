@@ -32,6 +32,12 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
 
 ### Fixed
 
+- **Saturation events are now logged.** `log_saturation()` was defined but never
+  called, so `friction_saturation` events never reached Loki even though
+  `FrictionController._detect_saturation` was flagging saturated tools. The
+  controller now buffers newly detected saturation events and the registry
+  drains and logs them (tagged with the client id) after each recorded call.
+
 ### Security
 
 - **Introspection client-auth credentials are guarded at runtime, not by
