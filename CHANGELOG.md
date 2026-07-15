@@ -12,9 +12,23 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## 0.6.0
+
+### Added
+
 - **`VerboseLoggingMiddleware` class.** The debug logging middleware is now a
   class-based ASGI middleware. `create_logging_middleware()` is retained as a
-  thin factory around it, so existing call sites keep working unchanged.
+  thin factory around it, so existing call sites keep working unchanged. (#52)
 
 ### Changed
 
@@ -24,16 +38,19 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
   `[False]`) as `nonlocal` substitutes. The logic now lives in
   `VerboseLoggingMiddleware` with `_log_request`, `_make_send_wrapper`, and
   `_make_receive_wrapper` helpers, and the per-request cells use real `nonlocal`
-  variables. Behaviour is unchanged.
+  variables. Behaviour is unchanged. (#52)
 
-### Deprecated
+- **Corrected the documented introspection URL safety-check timing.** The
+  architecture guide now accurately states that `IntrospectionTokenVerifier`
+  checks the configured endpoint on each verification request rather than at
+  construction time. (#46)
 
 ### Removed
 
 - **Dropped the unused `pydantic` runtime dependency.** `pydantic>=2.0.0` was
   declared in `[project.dependencies]` but never imported anywhere in the
   package, so it only added install surface for consumers. Removed it along with
-  the corresponding `deptry` DEP002 suppression.
+  the corresponding `deptry` DEP002 suppression. (#58)
 
 ### Fixed
 
@@ -42,6 +59,11 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
   `FrictionController._detect_saturation` was flagging saturated tools. The
   controller now buffers newly detected saturation events and the registry
   drains and logs them (tagged with the client id) after each recorded call.
+  (#57)
+
+- **Closed a controller/lock lookup race during LRU eviction.** Registry
+  lookups now return the controller and its lock atomically, preventing a
+  concurrent eviction from deleting the lock between separate lookups. (#50)
 
 ### Security
 
@@ -53,7 +75,8 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
   code interpolate `None` into a syntactically valid but semantically wrong
   `Authorization` header. The construction-time `ValueError` guards already
   guarantee the invariant, and `_apply_client_auth` now enforces it with real
-  `RuntimeError` checks so a missing credential fails loudly regardless of `-O`.
+  `RuntimeError` checks so a missing credential fails loudly regardless of
+  `-O`. (#49)
 
 - **Validation errors no longer expose internal backend field names (CWE-209).**
   When a wrapped list response arrived without an expected key,
@@ -62,7 +85,13 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
   error responses. The client-facing message is now generic (`"Backend returned
   {context} in unexpected format"`), and the backend keys and raw payload values
   are logged at `DEBUG` instead of `ERROR` so they no longer surface potentially
-  sensitive data in normal operation.
+  sensitive data in normal operation. (#48)
+
+- **Verbose logging now masks every credential-bearing header by default.**
+  `VerboseLoggingMiddleware` previously masked only `Authorization`, leaving
+  cookies, API keys, and proxy credentials visible in debug logs. It now masks
+  `Authorization`, `Cookie`, `X-API-Key`, and `Proxy-Authorization`
+  case-insensitively whenever `mask_auth=True`. (#45)
 
 - **Friction state now survives LRU eviction (CWE-799).** A client that had
   accrued high friction could previously reset it to zero by forcing its own
@@ -72,7 +101,7 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
   client's per-tool friction and restores it (as a floor) onto the controller
   it gets on reconnect. Tunable via the new `penalty_ttl` (default `3600.0`s;
   `0.0` disables and restores the legacy fresh-on-eviction behaviour) and
-  `penalty_min_friction` (default `0.1`) constructor arguments.
+  `penalty_min_friction` (default `0.1`) constructor arguments. (#44)
 
 ## 0.5.2
 
