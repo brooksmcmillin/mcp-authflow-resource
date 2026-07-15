@@ -30,6 +30,11 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
 
 ### Removed
 
+- **Dropped the unused `pydantic` runtime dependency.** `pydantic>=2.0.0` was
+  declared in `[project.dependencies]` but never imported anywhere in the
+  package, so it only added install surface for consumers. Removed it along with
+  the corresponding `deptry` DEP002 suppression.
+
 ### Fixed
 
 - **Saturation events are now logged.** `log_saturation()` was defined but never
