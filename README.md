@@ -188,6 +188,38 @@ register_oauth_discovery_endpoints(
 | `GET /.well-known/oauth-authorization-server/mcp` | RFC 8414 (path-scoped) |
 | `GET /.well-known/openid-configuration` | OIDC Discovery |
 
+**Parameters:**
+
+| Parameter | Description |
+|-----------|-------------|
+| `server_url` | Public URL of this resource server (advertised as `resource`). |
+| `auth_server_public_url` | Public URL of the authorization server clients are sent to. |
+| `scopes` | Supported OAuth scopes. Defaults to `["read"]`. |
+| `resource_documentation` | Optional URL included in protected resource metadata. |
+| `cors_header_builder` | Optional `(Request) -> dict[str, str]` callable. When set, the authorization-server metadata endpoints add its headers to every response and answer `OPTIONS` preflight requests — required for browser-based MCP clients. When `None`, no CORS headers are added. |
+
+**Browser-facing deployments (CORS):**
+
+Browser MCP clients send a CORS preflight before fetching auth-server metadata. Pass a `cors_header_builder` so the metadata endpoints respond to `OPTIONS` and include the appropriate headers:
+
+```python
+from starlette.requests import Request
+
+def cors_headers(request: Request) -> dict[str, str]:
+    return {
+        "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    }
+
+register_oauth_discovery_endpoints(
+    app,
+    server_url="https://mcp.example.com",
+    auth_server_public_url="https://auth.example.com",
+    cors_header_builder=cors_headers,
+)
+```
+
 ### Friction Control
 
 Dynamic tool-call rate limiting that adjusts friction per-tool based on observed usage, converging toward configured targets. Inspired by proof-of-work difficulty adjustment.
