@@ -44,6 +44,30 @@ register_oauth_discovery_endpoints(
 
 `server_url` is what gets advertised as `resource` and `aud`. `auth_server_public_url` is where clients are sent for authorization, and should be the *public* URL even if your resource server reaches the auth server over an internal address.
 
+### CORS for browser clients
+
+`cors_header_builder` is an optional `(Request) -> dict[str, str]` callable. When provided, the authorization-server metadata endpoints (`/.well-known/oauth-authorization-server`, `/.well-known/openid-configuration`, and their path-scoped variants) add the returned headers to every response and answer `OPTIONS` preflight requests with an empty body. When it is `None` (the default), no CORS headers are added and the endpoints only handle `GET`.
+
+Browser-based MCP clients send a CORS preflight before reading this metadata, so a builder is required for any browser-facing deployment:
+
+```python
+from starlette.requests import Request
+
+def cors_headers(request: Request) -> dict[str, str]:
+    return {
+        "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    }
+
+register_oauth_discovery_endpoints(
+    app,
+    server_url="https://mcp.example.com",
+    auth_server_public_url="https://auth.example.com",
+    cors_header_builder=cors_headers,
+)
+```
+
 ## Friction control
 
 Friction is configured at startup via [`init_friction`][mcp_authflow_resource.init_friction]. The full parameter set, including per-tool and per-group targets, is covered in the [Friction Control guide](friction.md).
