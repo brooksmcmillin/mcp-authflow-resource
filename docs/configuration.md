@@ -17,7 +17,7 @@ verifier = IntrospectionTokenVerifier(
     # Auth to the introspection endpoint itself (RFC 7662 §2.1)
     client_id=None,
     client_secret=None,
-    client_auth_method=None,  # "client_secret_basic" | "client_secret_post" | "bearer" | "none"
+    client_auth_method="client_secret_basic",  # "client_secret_basic" | "client_secret_post" | "bearer" | "none"
 )
 ```
 
