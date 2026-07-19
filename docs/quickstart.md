@@ -94,7 +94,7 @@ If your auth server protects its own introspection endpoint (which [RFC 7662 §2
     )
     ```
 
-See the [`IntrospectionTokenVerifier`][mcp_authflow_resource.auth.token_verifier.IntrospectionTokenVerifier] reference for the complete keyword-argument list, including timeout, retry, and `validate_resource` (RFC 8707 audience binding).
+See the [`IntrospectionTokenVerifier`][mcp_authflow_resource.auth.token_verifier.IntrospectionTokenVerifier] reference for the complete keyword-argument list, including `introspection_cache_ttl` (introspection caching) and `validate_resource` (RFC 8707 audience binding).
 
 ## Add friction control
 
