@@ -297,6 +297,19 @@ Friction Level    Effect
 | `hard_block_threshold` | 0.95 | Friction level that blocks the call |
 | `saturation_threshold` | 0.9 | Triggers automatic relief if sustained |
 
+**Security-relevant defaults:** two parameters ship disabled and must be set to
+turn on the protection they gate.
+
+| Parameter | Default | Safety note |
+|-----------|---------|-------------|
+| `default_budget` | `inf` | Cost enforcement is disabled; tool-use spending is unbounded until you set a finite per-client budget |
+| `saturation_window` | `0` | Automatic saturation relief is disabled, so sustained saturation can stay near block until normal decay brings it down |
+
+The other `ControllerConfig` fields (`ema_alpha`, `adjustment_rate`,
+`asymmetric_decay`, `dead_zone`, `saturation_relief_rate`) are adjustment-loop
+tuning knobs; see the [friction control guide](docs/friction.md) and the
+`ControllerConfig` API reference for details.
+
 #### Observability
 
 Friction events are emitted as structured JSON via Python's `logging` module:

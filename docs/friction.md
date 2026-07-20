@@ -80,6 +80,23 @@ Above the saturation threshold (default 0.9, sustained), the controller emits a 
 | `hard_block_threshold` | 0.95 | Friction level that blocks the call. |
 | `saturation_threshold` | 0.9 | Triggers automatic relief if sustained. |
 
+### Security-relevant defaults
+
+Two parameters ship with defaults that leave a protection *disabled* until you
+opt in. Set them deliberately — discovering them through the API reference and
+tuning them without this context can silently remove a safeguard.
+
+| Parameter | Default | Safety note |
+|---|---:|---|
+| `default_budget` | `inf` | Cost enforcement is disabled. Tool-use spending is unbounded until you set a finite per-client budget; use one when tool calls carry real cost or abuse risk. |
+| `saturation_window` | `0` | Automatic saturation relief is disabled, so sustained saturation can remain near block until normal decay brings it down. Set it to the number of consecutive saturated calls that should trigger relief, and pair it with `saturation_threshold` so legitimate sustained load can recover. |
+
+The remaining `ControllerConfig` fields (`ema_alpha`, `adjustment_rate`,
+`asymmetric_decay`, `dead_zone`, `saturation_relief_rate`) are tuning knobs for
+the adjustment loop rather than safety switches; see the
+[`ControllerConfig`][mcp_authflow_resource.ControllerConfig] reference for their
+defaults and semantics.
+
 See [`ControllerConfig`][mcp_authflow_resource.ControllerConfig] and [`ToolFrictionConfig`][mcp_authflow_resource.ToolFrictionConfig] for the full set, including per-tool overrides and group aggregation parameters.
 
 ## Observability
