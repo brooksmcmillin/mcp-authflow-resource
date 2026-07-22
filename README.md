@@ -398,11 +398,13 @@ class MemoryTokenStorage:
         client_id: str,
         scopes: list[str],
         expires_at: int,
+        resource: str,
     ) -> None:
         self._tokens[token] = {
             "client_id": client_id,
             "scopes": scopes,
             "expires_at": expires_at,
+            "resource": resource,
         }
 
     async def load_token(self, token: str) -> dict[str, object] | None:
@@ -420,11 +422,17 @@ async def token(request: Request) -> JSONResponse:
     access_token = secrets.token_urlsafe(32)
     scopes = parse_scope_field(form.get("scope"))
 
+    # RFC 8707 resource indicator. Bind the token to the resource server it is
+    # for so introspection can return a matching `aud` claim; default to this
+    # example's resource server when the client doesn't request one.
+    resource = str(form.get("resource") or "http://localhost:8001")
+
     await storage.store_token(
         token=access_token,
         client_id=client_id,
         scopes=scopes.split(),
         expires_at=int(time.time()) + 3600,
+        resource=resource,
     )
 
     return JSONResponse({
@@ -447,6 +455,9 @@ async def introspect(request: Request) -> JSONResponse:
         "client_id": data["client_id"],
         "scope": " ".join(data["scopes"]),
         "exp": data["expires_at"],
+        # `aud` binds the token to the resource server. Without it the
+        # verifier's default validate_resource=True rejects every token.
+        "aud": data["resource"],
     })
 
 @asynccontextmanager
@@ -506,12 +517,19 @@ python resource_server.py  # MCP SDK handles transport
 **Test the flow:**
 
 ```bash
-# Get a token
+# Get a token bound to the resource server (RFC 8707 resource indicator)
 TOKEN=$(curl -s -X POST http://localhost:8000/token \
-  -d "client_id=test&scope=read" | jq -r .access_token)
+  -d "client_id=test&scope=read&resource=http://localhost:8001" \
+  | jq -r .access_token)
 
-# Call an MCP tool (via the MCP protocol, token in Authorization header)
+# Confirm introspection returns the matching `aud`, so the verifier accepts it
+curl -s -X POST http://localhost:8000/introspect -d "token=$TOKEN" | jq .
+
+# The resource server advertises its auth server here (unauthenticated)
 curl http://localhost:8001/.well-known/oauth-protected-resource
+
+# Call an MCP tool over the MCP protocol with the token in the Authorization
+# header, e.g. Authorization: Bearer $TOKEN
 ```
 
 ## License

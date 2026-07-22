@@ -20,6 +20,12 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
 
 ### Fixed
 
+- **README "Full Example" now issues resource-bound tokens.** The example auth
+  server omitted the `aud` claim, so every token was rejected by the resource
+  server's default `validate_resource=True` and no tool call could authenticate.
+  The example now binds tokens to the resource server (RFC 8707) and returns a
+  matching `aud` on introspection, and the "Test the flow" snippet shows it. (#68)
+
 ### Security
 
 ## 0.6.0

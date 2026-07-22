@@ -473,6 +473,35 @@ class TestResourceValidation:
         assert result is None
         assert any("resource validation failed" in record.message for record in caplog.records)
 
+    async def test_readme_full_example_introspection_response_verifies(self) -> None:
+        """The README "Full Example" introspect response must pass verification.
+
+        Regression guard for issue #68: the documented example auth server used
+        to omit the `aud` claim, so its tokens were rejected by the default
+        validate_resource=True. This mirrors the shape the example now returns
+        and asserts the verifier accepts it when the audience matches.
+        """
+        resource_server_url = "http://localhost:8001"
+        introspection_response = {
+            "active": True,
+            "client_id": "test",
+            "scope": "read",
+            "exp": 9999999999,
+            "aud": resource_server_url,
+        }
+        verifier = _make_verifier(server_url=resource_server_url, validate_resource=True)
+        mock_response = _mock_http_response(200, introspection_response)
+        mock_post = AsyncMock(return_value=mock_response)
+
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            mock_client_cls.return_value.__aenter__ = AsyncMock(
+                return_value=MagicMock(post=mock_post)
+            )
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            result = await verifier.verify_token("tok")
+
+        assert result is not None
+
 
 # ---------------------------------------------------------------------------
 # _validate_resource unit tests
