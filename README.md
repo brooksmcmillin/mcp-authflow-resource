@@ -350,7 +350,13 @@ from mcp_authflow_resource.middleware import NormalizePathMiddleware, create_log
 # Normalize trailing slashes: /mcp/ -> /mcp
 app.add_middleware(NormalizePathMiddleware)
 
-# Debug logging with auth header masking
+# Debug logging with auth header masking.
+#
+# WARNING: this middleware logs full request bodies and headers (CWE-532) and
+# must NEVER run in production. To prevent accidental activation, it refuses to
+# construct — raising RuntimeError — unless MCP_ENABLE_VERBOSE_LOGGING=1 is set
+# in the environment. Set that variable only in controlled debug environments,
+# and remove it before deploying.
 app = create_logging_middleware(app, mask_auth=True)
 ```
 
