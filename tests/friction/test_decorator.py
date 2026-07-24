@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from mcp_authflow_resource.friction.decorator import (
+    _get_client_id,
     friction_controlled,
     record_tool_call,
 )
@@ -123,6 +125,47 @@ class TestFrictionControlled:
 
         assert my_special_tool.__name__ == "my_special_tool"
         assert my_special_tool.__doc__ == "A special tool."
+
+
+class TestGetClientId:
+    """Exercise the real client-id extraction, not a mock of it.
+
+    ``_get_client_id`` reads the authenticated client from the MCP auth
+    context.  A wrong read or a silent ``None`` here determines whether a
+    friction/budget penalty is attributed to the right client, so the real
+    path — including the fail-open ``except`` branch — needs coverage.
+    """
+
+    def test_returns_client_id_from_context(self) -> None:
+        # Stand-in for mcp's AccessToken; _get_client_id only reads client_id.
+        token = SimpleNamespace(client_id="client-123")
+
+        with patch(
+            "mcp.server.auth.middleware.auth_context.get_access_token",
+            return_value=token,
+        ):
+            assert _get_client_id() == "client-123"
+
+    def test_returns_none_when_no_token(self) -> None:
+        with patch(
+            "mcp.server.auth.middleware.auth_context.get_access_token",
+            return_value=None,
+        ):
+            assert _get_client_id() is None
+
+    def test_swallows_exception_returns_none(self) -> None:
+        """Fail-open: an error reading the context must not crash the tool.
+
+        The context var is unset outside a request (e.g. in tests or on
+        unauthenticated endpoints); ``_get_client_id`` returns ``None`` so
+        the caller allows the call rather than raising.
+        """
+
+        with patch(
+            "mcp.server.auth.middleware.auth_context.get_access_token",
+            side_effect=RuntimeError("no auth context"),
+        ):
+            assert _get_client_id() is None
 
 
 class TestRecordToolCall:
