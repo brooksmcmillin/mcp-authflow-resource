@@ -28,6 +28,11 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
 
 ### Security
 
+- **The PyPI publish action is pinned to a commit SHA.** `publish.yml` used
+  `pypa/gh-action-pypi-publish@release/v1`, a mutable branch, in the job that
+  holds `id-token: write` for trusted publishing. It now pins
+  `ba38be9e` (v1.14.1), and a new Dependabot config keeps the pin current. (#65)
+
 ## 0.6.0
 
 ### Added
