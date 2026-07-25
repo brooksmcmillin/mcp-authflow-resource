@@ -1,0 +1,15 @@
+version: 2
+
+updates:
+  # Keeps the SHA-pinned actions in .github/workflows/ current, so pinning
+  # doesn't mean silently running a stale (or vulnerable) action.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions:
+        patterns:
+          - "*"
