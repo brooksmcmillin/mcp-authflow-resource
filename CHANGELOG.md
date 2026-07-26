@@ -28,6 +28,10 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
 
 ### Security
 
+- **`ci.yml` now declares `permissions: contents: read` at the top level.** Only
+  the `gitleaks` job scoped its own permissions, so the other six jobs ran with
+  the repository's default `GITHUB_TOKEN` scopes. A test now asserts every
+  workflow declares a non-empty top-level `permissions:` block. (#66)
 - **The PyPI publish action is pinned to a commit SHA.** `publish.yml` used
   `pypa/gh-action-pypi-publish@release/v1`, a mutable branch, in the job that
   holds `id-token: write` for trusted publishing. It now pins
