@@ -32,6 +32,13 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
   the `gitleaks` job scoped its own permissions, so the other six jobs ran with
   the repository's default `GITHUB_TOKEN` scopes. A test now asserts every
   workflow declares a non-empty top-level `permissions:` block. (#66)
+- **Every GitHub Actions step is pinned to a commit SHA.** The remaining
+  workflow steps still used movable version tags (`actions/checkout@v7`,
+  `astral-sh/setup-uv@v7`, `actions/upload-pages-artifact@v5`,
+  `actions/deploy-pages@v5`, `gitleaks/gitleaks-action@v3`), which the upstream
+  owner can force-push to new code. Each now pins a 40-char SHA with a
+  `# vX.Y.Z` comment, kept current by Dependabot, and tests assert both the SHA
+  pin and the version comment for every workflow. (#67)
 - **The PyPI publish action is pinned to a commit SHA.** `publish.yml` used
   `pypa/gh-action-pypi-publish@release/v1`, a mutable branch, in the job that
   holds `id-token: write` for trusted publishing. It now pins
