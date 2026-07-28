@@ -21,3 +21,29 @@ jobs:
       # Pinned to a commit SHA, not the mutable release/v1 branch: this step runs
       # with id-token: write in the pypi environment. Bumped by Dependabot.
       - uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # v1.14.1
+
+  # Creating the GitHub release used to be a manual step at the end of
+  # RELEASING.md. Because the tag push already put the artifact on PyPI, nothing
+  # went red when that step was skipped — v0.4.0, v0.5.0, v0.5.2 and v0.6.0 all
+  # shipped without a release. Making it a consequence of the tag removes the
+  # step that has to be remembered.
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    # Narrower than the top-level scope on purpose: publishing authenticates
+    # with OIDC, so only this job needs a writable GITHUB_TOKEN.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Extract the release notes from CHANGELOG.md
+        # Fails the job if the section is missing or empty, rather than
+        # publishing a release with an empty body.
+        run: python3 .github/scripts/changelog-section.py "${GITHUB_REF_NAME#v}" > notes.md
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file notes.md

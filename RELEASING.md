@@ -39,10 +39,27 @@ the template for the next cycle.
    `CHANGELOG.md` heading in step 2 is the only other place the number appears.)
 4. Commit (`release: X.Y.Z`), tag (`git tag vX.Y.Z`), and push with
    `--follow-tags`.
-5. Build and publish:
-   ```bash
-   uv build
-   uv publish
-   ```
-6. Create the GitHub release from the tag, pasting the version's changelog
-   section as the release notes.
+
+That is the whole manual process. Pushing the tag triggers
+[`publish.yml`](.github/workflows/publish.yml), which:
+
+- builds the wheel and sdist and publishes them to PyPI via trusted publishing
+  (OIDC — there is no token to manage), then
+- creates the GitHub release, using the version's `CHANGELOG.md` section as the
+  release notes.
+
+**Do not run `uv publish` locally.** CI publishes the same version from the same
+tag, and whichever loses the race fails with "file already exists."
+
+Watch the run with `gh run list --workflow=publish.yml`, and confirm both halves
+landed: the version on PyPI and `gh release view vX.Y.Z`.
+
+If the release notes step fails, it is almost always because the changelog
+heading for that version is missing or its section is empty — the artifact is
+already on PyPI at that point, so fix the changelog on `main` and create the
+release by hand:
+
+```bash
+python3 .github/scripts/changelog-section.py X.Y.Z > notes.md
+gh release create vX.Y.Z --title "vX.Y.Z" --notes-file notes.md
+```
