@@ -14,6 +14,13 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
 
 ### Changed
 
+- **Friction log records are now serialized by a single private helper.** The
+  `json.dumps(..., separators=(",", ":"))` call and the `"event_type"` key
+  convention were repeated at all eight `log_*` call sites in
+  `friction/logging.py`; each now builds only its field dict and delegates to
+  `_emit()`. Public function signatures, logger names, levels, and the emitted
+  record text are unchanged, so existing LogQL queries keep working. (#73)
+
 ### Deprecated
 
 ### Removed
