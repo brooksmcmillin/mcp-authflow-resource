@@ -23,15 +23,32 @@ block_logger = logging.getLogger("mcp_authflow_resource.friction.block")
 registry_logger = logging.getLogger("mcp_authflow_resource.friction.registry")
 
 
-def _friction_extra(
+LogFields = dict[str, str | float | bool]
+
+
+def _emit(
+    target_logger: logging.Logger,
+    level: int,
+    event_type: str,
+    fields: LogFields,
+) -> None:
+    """Emit ``<event_type> <compact-json>`` on ``target_logger``.
+
+    ``event_type`` is also injected as the first key of the JSON payload, so the
+    record text is identical whether it is matched by the plain-text prefix or
+    parsed as JSON by LogQL.
+    """
+    payload: LogFields = {"event_type": event_type, **fields}
+    target_logger.log(level, "%s %s", event_type, json.dumps(payload, separators=(",", ":")))
+
+
+def _friction_fields(
     client_id: str,
     tool_name: str,
     result: FrictionResult,
-    event_type: str,
-) -> dict[str, str | float | bool]:
-    """Build structured extra fields for a friction log record."""
+) -> LogFields:
+    """Build structured fields for a friction log record."""
     return {
-        "event_type": event_type,
         "client_id": client_id,
         "tool_name": tool_name,
         "friction": round(result.friction, 4),
@@ -48,20 +65,27 @@ def _friction_extra(
 
 def log_check(client_id: str, tool_name: str, result: FrictionResult) -> None:
     """Log a friction check (every tool call that passes through the decorator)."""
-    extra = _friction_extra(client_id, tool_name, result, "friction_check")
-    logger.info("friction_check %s", json.dumps(extra, separators=(",", ":")))
+    _emit(logger, logging.INFO, "friction_check", _friction_fields(client_id, tool_name, result))
 
 
 def log_block(client_id: str, tool_name: str, result: FrictionResult) -> None:
     """Log a blocked tool call (WARNING level for alerting)."""
-    extra = _friction_extra(client_id, tool_name, result, "friction_block")
-    block_logger.warning("friction_block %s", json.dumps(extra, separators=(",", ":")))
+    _emit(
+        block_logger,
+        logging.WARNING,
+        "friction_block",
+        _friction_fields(client_id, tool_name, result),
+    )
 
 
 def log_justification_required(client_id: str, tool_name: str, result: FrictionResult) -> None:
     """Log when justification threshold is reached."""
-    extra = _friction_extra(client_id, tool_name, result, "friction_justification")
-    logger.info("friction_justification %s", json.dumps(extra, separators=(",", ":")))
+    _emit(
+        logger,
+        logging.INFO,
+        "friction_justification",
+        _friction_fields(client_id, tool_name, result),
+    )
 
 
 def log_saturation(
@@ -71,52 +95,58 @@ def log_saturation(
     original_target: float,
 ) -> None:
     """Log saturation detection event."""
-    extra = {
-        "event_type": "friction_saturation",
-        "client_id": client_id,
-        "tool_name": tool_name,
-        "effective_target": round(effective_target, 6),
-        "original_target": round(original_target, 6),
-    }
-    logger.warning("friction_saturation %s", json.dumps(extra, separators=(",", ":")))
+    _emit(
+        logger,
+        logging.WARNING,
+        "friction_saturation",
+        {
+            "client_id": client_id,
+            "tool_name": tool_name,
+            "effective_target": round(effective_target, 6),
+            "original_target": round(original_target, 6),
+        },
+    )
 
 
 def log_client_evicted(client_id: str, total_clients: int) -> None:
     """Log LRU eviction of a client's friction state."""
-    extra = {
-        "event_type": "friction_client_evicted",
-        "client_id": client_id,
-        "total_clients": total_clients,
-    }
-    registry_logger.info("friction_client_evicted %s", json.dumps(extra, separators=(",", ":")))
+    _emit(
+        registry_logger,
+        logging.INFO,
+        "friction_client_evicted",
+        {"client_id": client_id, "total_clients": total_clients},
+    )
 
 
 def log_penalty_captured(client_id: str, peak_friction: float, ttl: float) -> None:
     """Log persistence of an evicted client's accrued friction penalty."""
-    extra = {
-        "event_type": "friction_penalty_captured",
-        "client_id": client_id,
-        "peak_friction": round(peak_friction, 4),
-        "ttl": round(ttl, 3),
-    }
-    registry_logger.info("friction_penalty_captured %s", json.dumps(extra, separators=(",", ":")))
+    _emit(
+        registry_logger,
+        logging.INFO,
+        "friction_penalty_captured",
+        {
+            "client_id": client_id,
+            "peak_friction": round(peak_friction, 4),
+            "ttl": round(ttl, 3),
+        },
+    )
 
 
 def log_penalty_restored(client_id: str, peak_friction: float) -> None:
     """Log restoration of a persisted friction penalty onto a fresh controller."""
-    extra = {
-        "event_type": "friction_penalty_restored",
-        "client_id": client_id,
-        "peak_friction": round(peak_friction, 4),
-    }
-    registry_logger.info("friction_penalty_restored %s", json.dumps(extra, separators=(",", ":")))
+    _emit(
+        registry_logger,
+        logging.INFO,
+        "friction_penalty_restored",
+        {"client_id": client_id, "peak_friction": round(peak_friction, 4)},
+    )
 
 
 def log_client_created(client_id: str, total_clients: int) -> None:
     """Log creation of a new per-client friction controller."""
-    extra = {
-        "event_type": "friction_client_created",
-        "client_id": client_id,
-        "total_clients": total_clients,
-    }
-    registry_logger.debug("friction_client_created %s", json.dumps(extra, separators=(",", ":")))
+    _emit(
+        registry_logger,
+        logging.DEBUG,
+        "friction_client_created",
+        {"client_id": client_id, "total_clients": total_clients},
+    )
