@@ -71,7 +71,8 @@ jobs:
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
-      - run: uvx 'bandit[toml]' -c pyproject.toml -r . --severity-level medium
+      # Keep this version in sync with the bandit rev in .pre-commit-config.yaml.
+      - run: uvx 'bandit[toml]==1.9.2' -c pyproject.toml -r . --severity-level medium
 
   gitleaks:
     name: Security | Secret Scan
