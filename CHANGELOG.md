@@ -27,6 +27,14 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
 
 ### Fixed
 
+- **The bandit version is now reproducible in both pre-commit and CI.** The
+  pre-commit hook declared `additional_dependencies: ['bandit[toml]']`, an
+  unpinned spec that could install a bandit unrelated to the hook's
+  `rev: 1.9.2`; the `Security | Bandit` CI job likewise ran an unpinned
+  `uvx 'bandit[toml]'`. The hook now relies on the version pre-commit already
+  installs from `rev` (the `toml` extra only adds `tomli` on Python < 3.11, and
+  this project requires >= 3.11), CI pins `bandit[toml]==1.9.2`, and tests assert
+  the two stay in sync. (#74)
 - **README "Full Example" now issues resource-bound tokens.** The example auth
   server omitted the `aud` claim, so every token was rejected by the resource
   server's default `validate_resource=True` and no tool call could authenticate.

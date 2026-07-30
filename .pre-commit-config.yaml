@@ -63,4 +63,8 @@ repos:
     hooks:
       - id: bandit
         args: ['-c', 'pyproject.toml']
-        additional_dependencies: ['bandit[toml]']
+        # No `bandit[toml]` here on purpose: pre-commit already installs bandit
+        # from the pinned `rev` above, and re-declaring it as a dependency would
+        # either float to the latest PyPI release or conflict with that install.
+        # The `toml` extra is a no-op for us anyway -- it only pulls in `tomli`
+        # for Python < 3.11, and this project requires >= 3.11 (stdlib tomllib).
