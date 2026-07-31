@@ -14,13 +14,13 @@ jobs:
     environment: pypi
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           enable-cache: true
       - run: uv build
       # Pinned to a commit SHA, not the mutable release/v1 branch: this step runs
       # with id-token: write in the pypi environment. Bumped by Dependabot.
-      - uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # v1.14.1
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
 
   # Creating the GitHub release used to be a manual step at the end of
   # RELEASING.md. Because the tag push already put the artifact on PyPI, nothing
