@@ -5,13 +5,11 @@ Usage::
     from mcp_authflow_resource.friction import friction_controlled, record_tool_call
 
     @app.tool()
-    @guard_tool(input_params=["title"])
     @friction_controlled()
     async def create_task(title: str) -> str:
         ...
 
     @app.tool()
-    @guard_tool(input_params=["status"])
     @record_tool_call()
     async def get_tasks(status: str) -> str:
         ...
