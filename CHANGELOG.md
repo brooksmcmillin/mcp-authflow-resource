@@ -27,6 +27,13 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
 
 ### Fixed
 
+- **The friction decorator API reference no longer shows a `@guard_tool`
+  decorator.** The `friction/decorator.py` module docstring — rendered in the
+  API reference via mkdocstrings — decorated its two examples with
+  `@guard_tool(input_params=[...])`, a decorator this package does not ship, so
+  copying either example raised `NameError`. The lines are removed, and a test
+  now asserts every bare decorator named in a package docstring resolves to a
+  real object. (#71)
 - **The bandit version is now reproducible in both pre-commit and CI.** The
   pre-commit hook declared `additional_dependencies: ['bandit[toml]']`, an
   unpinned spec that could install a bandit unrelated to the hook's
