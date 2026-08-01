@@ -27,6 +27,15 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
 
 ### Fixed
 
+- **The documented friction log levels now match the levels the code emits.**
+  The README, the configuration guide and the friction guide labelled
+  `mcp_authflow_resource.friction.registry` as DEBUG, but client eviction and
+  penalty capture/restore log at INFO (only client-created is DEBUG); the
+  `mcp_authflow_resource.friction` logger was likewise labelled INFO while
+  `friction_saturation` logs at WARNING. Operators filtering on the documented
+  level missed those events. Every mention now lists the full level set, and a
+  test compares the documented levels against the `_emit()` call sites. (#89)
+
 - **The friction decorator API reference no longer shows a `@guard_tool`
   decorator.** The `friction/decorator.py` module docstring — rendered in the
   API reference via mkdocstrings — decorated its two examples with

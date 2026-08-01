@@ -92,10 +92,10 @@ init_friction(FrictionRegistry(
 
 Configure Python's standard `logging` module. No extra config knobs. The logger names this package uses:
 
-| Logger | Level | What's there |
+| Logger | Levels | What's there |
 |---|---|---|
-| `mcp_authflow_resource.friction` | INFO | Friction check/record events. |
+| `mcp_authflow_resource.friction` | INFO, WARNING | Friction check/record events; `friction_saturation` is the WARNING. |
 | `mcp_authflow_resource.friction.block` | WARNING | Blocked calls. |
-| `mcp_authflow_resource.friction.registry` | DEBUG | Per-client lifecycle. |
+| `mcp_authflow_resource.friction.registry` | INFO, DEBUG | Per-client lifecycle: eviction and penalty capture/restore at INFO, `friction_client_created` at DEBUG. |
 
 Pipe these into your structured log stack for observability dashboards.

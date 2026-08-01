@@ -316,9 +316,9 @@ Friction events are emitted as structured JSON via Python's `logging` module:
 
 ```python
 # Logger names
-"mcp_authflow_resource.friction"         # check/record events (INFO)
+"mcp_authflow_resource.friction"         # check/record events (INFO; saturation WARNING)
 "mcp_authflow_resource.friction.block"   # blocked calls (WARNING)
-"mcp_authflow_resource.friction.registry"  # client lifecycle (DEBUG)
+"mcp_authflow_resource.friction.registry"  # client lifecycle (INFO; client-created DEBUG)
 ```
 
 Event types: `friction_check`, `friction_block`, `friction_justification`, `friction_saturation`
