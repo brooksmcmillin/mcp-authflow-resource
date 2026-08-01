@@ -6,9 +6,9 @@ ships it to Loki with labels ``{namespace, pod, container, app}``.
 
 Logger hierarchy::
 
-    mcp_authflow_resource.friction          -- check / record events
+    mcp_authflow_resource.friction          -- check / record (INFO, saturation WARNING)
     mcp_authflow_resource.friction.block    -- blocked tool calls (WARNING)
-    mcp_authflow_resource.friction.registry -- client lifecycle events
+    mcp_authflow_resource.friction.registry -- lifecycle (INFO, client-created DEBUG)
 
 See ``packages/mcp-authflow-resource/CLAUDE.md`` for LogQL query examples.
 """
