@@ -93,6 +93,11 @@ That's it. Clients must now present a valid Bearer token to call any tool.
 4. If active and scopes match, the tool executes
 5. If `validate_resource=True`, the `aud` claim must match the server URL (RFC 8707)
 
+The `aud` claim may be a string or a list containing a matching audience, including
+an allowed parent resource URL. Validated lists yield an `AccessToken.resource`
+equal to the canonical server resource URL. With resource validation disabled,
+list audiences yield `resource=None`; string audiences are preserved unchanged.
+
 ## API Reference
 
 ### Token Verification
