@@ -270,12 +270,17 @@ class IntrospectionTokenVerifier(TokenVerifier):
                 logger.warning("Token resource validation failed. Expected: %s", self.resource_url)
                 return None
 
+            resource = data_resp.get("aud")
+            if isinstance(resource, list):
+                # The SDK accepts one resource, not the introspection audience list.
+                resource = self.resource_url if self.validate_resource else None
+
             access_token = AccessToken(
                 token=token,
                 client_id=data_resp.get("client_id", "unknown"),
                 scopes=self._parse_scopes(data_resp.get("scope")),
                 expires_at=data_resp.get("exp"),
-                resource=data_resp.get("aud"),  # Include resource in token
+                resource=resource,
             )
             if cache_key is not None:
                 await self._cache_put(cache_key, access_token, access_token.expires_at)

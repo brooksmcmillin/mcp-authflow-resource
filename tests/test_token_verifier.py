@@ -459,9 +459,12 @@ class TestResourceValidation:
     """RFC 8707 resource validation via the `aud` claim."""
 
     async def _call_verifier_with_data(
-        self, token_data: dict[str, Any], validate_resource: bool = True
+        self,
+        token_data: dict[str, Any],
+        validate_resource: bool = True,
+        server_url: str = SERVER_URL,
     ) -> Any:  # noqa: ANN401
-        verifier = _make_verifier(validate_resource=validate_resource)
+        verifier = _make_verifier(validate_resource=validate_resource, server_url=server_url)
         mock_response = _mock_http_response(200, token_data)
         mock_post = AsyncMock(return_value=mock_response)
 
@@ -478,24 +481,35 @@ class TestResourceValidation:
         result = await self._call_verifier_with_data(token_data)
         assert result is not None
 
-    async def test_list_aud_containing_server_url_resource_validation_passes(self) -> None:
-        """List `aud` containing the server URL passes _validate_resource.
+    @pytest.mark.parametrize(
+        ("audiences", "server_url", "expected_resource"),
+        [
+            (["https://other.example.com", SERVER_URL], SERVER_URL, SERVER_URL),
+            ([SERVER_URL, "https://other.example.com"], SERVER_URL, SERVER_URL),
+            ([SERVER_URL], SERVER_URL + "/api/mcp", SERVER_URL + "/api/mcp"),
+            ([SERVER_URL], "https://MCP.EXAMPLE.COM/#fragment", SERVER_URL + "/"),
+        ],
+    )
+    async def test_matching_list_aud_returns_canonical_resource(
+        self, audiences: list[str], server_url: str, expected_resource: str
+    ) -> None:
+        """Matching exact and parent audiences yield a canonical string resource."""
+        token_data = {**_ACTIVE_TOKEN_DATA, "aud": audiences}
+        result = await self._call_verifier_with_data(token_data, server_url=server_url)
+        assert result is not None
+        assert result.resource == expected_resource
 
-        NOTE: verify_token subsequently passes the list as `resource` to
-        AccessToken, which requires a string — Pydantic raises a validation
-        error that is caught by the except block and returns None. This test
-        documents the current behaviour. The _validate_resource logic itself
-        correctly accepts a matching list (tested directly in
-        TestValidateResourceMethod).
-        """
-        token_data = {
-            **_ACTIVE_TOKEN_DATA,
-            "aud": ["https://other.example.com", SERVER_URL],
-        }
-        # The list aud passes _validate_resource but AccessToken rejects the
-        # list via Pydantic, so verify_token returns None here.
-        result = await self._call_verifier_with_data(token_data)
-        assert result is None
+    @pytest.mark.parametrize("audiences", [[], ["https://other.example.com"]])
+    async def test_unbound_list_aud_with_validation_disabled(self, audiences: list[str]) -> None:
+        """Opting out of validation must not assert a resource binding."""
+        token_data = {**_ACTIVE_TOKEN_DATA, "aud": audiences}
+        result = await self._call_verifier_with_data(token_data, validate_resource=False)
+        assert result is not None
+        assert result.resource is None
+
+    async def test_empty_list_aud_returns_none(self) -> None:
+        token_data = {**_ACTIVE_TOKEN_DATA, "aud": []}
+        assert await self._call_verifier_with_data(token_data) is None
 
     async def test_list_aud_not_containing_server_url_returns_none(self) -> None:
         """List `aud` that does not include the server URL fails validation."""
