@@ -14,6 +14,28 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
 
 ### Changed
 
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## 0.7.0
+
+### Added
+
+- **`IntrospectionTokenVerifier.close()` releases pooled HTTP connections.**
+  Call `await verifier.close()` when the owning application shuts down. (#92)
+
+### Changed
+
+- **Token introspection reuses a verifier-owned HTTP client.** Connections are
+  pooled instead of creating a client for each request. The introspection URL
+  safety check now runs once at construction, and `introspection_endpoint` is
+  read-only; create a new verifier to change endpoints. (#92)
+
 - **Friction log records are now serialized by a single private helper.** The
   `json.dumps(..., separators=(",", ":"))` call and the `"event_type"` key
   convention were repeated at all eight `log_*` call sites in
@@ -21,11 +43,17 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
   `_emit()`. Public function signatures, logger names, levels, and the emitted
   record text are unchanged, so existing LogQL queries keep working. (#73)
 
-### Deprecated
-
-### Removed
-
 ### Fixed
+
+- **Valid multi-audience introspection tokens authenticate correctly.** After
+  validating an audience list, the verifier passes the matching resource URL to
+  the MCP SDK rather than the list. With resource validation disabled, list
+  audiences are represented as an unset resource. (#106)
+- **Configuration and logging examples match the supported API.** Documented
+  the discovery `cors_header_builder`, corrected the `client_auth_method`
+  default, removed unsupported timeout/retry parameters, clarified friction
+  budget and saturation defaults, and documented that logging middleware needs
+  `MCP_ENABLE_VERBOSE_LOGGING=1`. (#60, #62, #63, #64, #77)
 
 - **The documented friction log levels now match the levels the code emits.**
   The README, the configuration guide and the friction guide labelled
@@ -59,6 +87,9 @@ Add entries under `## [Unreleased]` as PRs merge. At release time the
 
 ### Security
 
+- **Documentation deployment permissions are scoped to the deployment job.**
+  Other documentation workflow jobs no longer receive `pages: write` or
+  `id-token: write`. (#84)
 - **`ci.yml` now declares `permissions: contents: read` at the top level.** Only
   the `gitleaks` job scoped its own permissions, so the other six jobs ran with
   the repository's default `GITHUB_TOKEN` scopes. A test now asserts every
