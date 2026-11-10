@@ -74,7 +74,8 @@ class FrictionRegistry:
         # client_id passed through from the token. (Keyed on client_id rather
         # than the OAuth ``sub`` claim, matching the controller granularity;
         # thread ``sub`` through here if per-user penalties are ever needed.)
-        self._penalty_store: dict[str, tuple[float, dict[str, float]]] = {}
+        # Fixed TTL and monotonic capture times keep entries in expiry order.
+        self._penalty_store: OrderedDict[str, tuple[float, dict[str, float]]] = OrderedDict()
 
     def _create_controller(self, client_id: str) -> FrictionController:
         """Create a new controller for a client with the shared config."""
@@ -154,6 +155,7 @@ class FrictionRegistry:
                 penalized[tool] = max(penalized.get(tool, 0.0), friction)
 
         self._penalty_store[client_id] = (now + self._penalty_ttl, penalized)
+        self._penalty_store.move_to_end(client_id)
         friction_logging.log_penalty_captured(client_id, max(penalized.values()), self._penalty_ttl)
 
     def _restore_penalty(
@@ -176,9 +178,11 @@ class FrictionRegistry:
 
     def _prune_penalties(self, now: float) -> None:
         """Drop expired entries so the penalty store stays bounded."""
-        expired = [cid for cid, (expiry, _) in self._penalty_store.items() if expiry <= now]
-        for cid in expired:
-            del self._penalty_store[cid]
+        while self._penalty_store:
+            client_id = next(iter(self._penalty_store))
+            if self._penalty_store[client_id][0] > now:
+                break
+            self._penalty_store.popitem(last=False)
 
     async def check_and_record(self, client_id: str, tool_name: str) -> FrictionResult:
         """Check friction and record a tool call atomically.

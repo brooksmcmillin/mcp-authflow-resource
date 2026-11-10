@@ -2,6 +2,9 @@
 
 import asyncio
 import dataclasses
+from collections import OrderedDict
+from collections.abc import Iterator
+from typing import Never
 
 import pytest
 
@@ -177,6 +180,92 @@ class TestPenaltyPersistence:
 
         restored = reg.get_client_status("client-a")["delete_task"]["friction"]  # type: ignore[index]
         assert restored < 0.1
+
+
+class TestPenaltyPruning:
+    def test_prunes_only_expired_prefix_including_equal_expiries(self) -> None:
+        reg = FrictionRegistry(penalty_ttl=10.0)
+        controller = reg._create_controller("client")
+        controller.restore_friction_levels({"delete_task": 0.8})
+        for client_id, now in (("a", 0.0), ("b", 0.0), ("c", 5.0), ("d", 6.0)):
+            reg._capture_penalty(client_id, controller, now)
+
+        reg._prune_penalties(10.0)
+        assert list(reg._penalty_store) == ["c", "d"]
+        reg._prune_penalties(16.0)
+        assert not reg._penalty_store
+        reg._prune_penalties(17.0)
+
+    def test_recapture_refreshes_expiry_order_and_keeps_per_tool_peaks(self) -> None:
+        reg = FrictionRegistry(penalty_ttl=10.0)
+        controller = reg._create_controller("client")
+        controller.restore_friction_levels({"delete_task": 0.8})
+        reg._capture_penalty("a", controller, 0.0)
+        reg._capture_penalty("b", controller, 1.0)
+
+        fresh = reg._create_controller("client")
+        fresh.restore_friction_levels({"delete_task": 0.4, "update_task": 0.6})
+        reg._capture_penalty("a", fresh, 2.0)
+        assert list(reg._penalty_store) == ["b", "a"]
+        assert reg._penalty_store["a"] == (12.0, {"delete_task": 0.8, "update_task": 0.6})
+
+        reg._prune_penalties(11.0)
+        assert list(reg._penalty_store) == ["a"]
+        restored = reg._create_controller("a")
+        reg._restore_penalty("a", restored, 11.0)
+        assert restored.peak_friction_levels() == {"delete_task": 0.8, "update_task": 0.6}
+        assert not reg._penalty_store
+
+    def test_restored_then_recaptured_penalty_survives_original_expiry(self) -> None:
+        reg = FrictionRegistry(penalty_ttl=10.0)
+        controller = reg._create_controller("a")
+        controller.restore_friction_levels({"delete_task": 0.8})
+        reg._capture_penalty("a", controller, 0.0)
+        reg._capture_penalty("b", controller, 1.0)
+        restored = reg._create_controller("a")
+        reg._restore_penalty("a", restored, 2.0)
+        reg._capture_penalty("a", restored, 3.0)
+
+        reg._prune_penalties(11.0)
+        assert list(reg._penalty_store) == ["a"]
+        assert reg._penalty_store["a"][0] == 13.0
+        reg._prune_penalties(13.0)
+        assert not reg._penalty_store
+
+    def test_unexpired_churn_checks_only_oldest_penalty(self) -> None:
+        class CountingStore(OrderedDict[str, tuple[float, dict[str, float]]]):
+            reads = 0
+            visits = 0
+
+            def __getitem__(self, key: str) -> tuple[float, dict[str, float]]:
+                self.reads += 1
+                return super().__getitem__(key)
+
+            def __iter__(self) -> Iterator[str]:
+                for key in super().__iter__():
+                    self.visits += 1
+                    yield key
+
+            def items(self) -> Never:
+                pytest.fail("pruning must not scan penalty items")
+
+            def values(self) -> Never:
+                pytest.fail("pruning must not scan penalty values")
+
+            def keys(self) -> Never:
+                pytest.fail("pruning must not scan penalty keys")
+
+        reg = FrictionRegistry(penalty_ttl=3600.0)
+        store = CountingStore()
+        reg._penalty_store = store
+        controller = reg._create_controller("client")
+        controller.restore_friction_levels({"delete_task": 0.8})
+        for i in range(2000):
+            reg._capture_penalty(f"client-{i}", controller, float(i))
+
+        assert len(store) == 2000
+        assert store.reads == 1999
+        assert store.visits == 1999
 
 
 class TestConcurrency:
